@@ -65,6 +65,7 @@ export interface Database {
           title: string;
           description: string | null;
           series: string | null;
+          tags: string[] | null;
           pub_date: string | null;
           audio_url: string | null;
           image_url: string | null;
@@ -79,6 +80,7 @@ export interface Database {
           title: string;
           description?: string | null;
           series?: string | null;
+          tags?: string[] | null;
           pub_date?: string | null;
           audio_url?: string | null;
           image_url?: string | null;
@@ -93,6 +95,7 @@ export interface Database {
           title?: string;
           description?: string | null;
           series?: string | null;
+          tags?: string[] | null;
           pub_date?: string | null;
           audio_url?: string | null;
           image_url?: string | null;
@@ -205,6 +208,55 @@ export interface Database {
           completed_at?: string | null;
         };
       };
+      goals: {
+        Row: {
+          id: string;
+          metric_name: string;
+          target_value: number;
+          period: string;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          metric_name: string;
+          target_value: number;
+          period: string;
+          created_at?: string;
+        };
+        Update: {
+          id?: string;
+          metric_name?: string;
+          target_value?: number;
+          period?: string;
+          created_at?: string;
+        };
+      };
+      annotations: {
+        Row: {
+          id: string;
+          date: string;
+          note: string;
+          category: string;
+          created_at: string;
+          user_id: string | null;
+        };
+        Insert: {
+          id?: string;
+          date: string;
+          note: string;
+          category: string;
+          created_at?: string;
+          user_id?: string | null;
+        };
+        Update: {
+          id?: string;
+          date?: string;
+          note?: string;
+          category?: string;
+          created_at?: string;
+          user_id?: string | null;
+        };
+      };
     };
     Views: {
       [_ in never]: never;
@@ -225,3 +277,5 @@ export type EpisodeMetric =
   Database["public"]["Tables"]["episode_metrics"]["Row"];
 export type DataSource = Database["public"]["Tables"]["data_sources"]["Row"];
 export type SyncLog = Database["public"]["Tables"]["sync_logs"]["Row"];
+export type Goal = Database["public"]["Tables"]["goals"]["Row"];
+export type Annotation = Database["public"]["Tables"]["annotations"]["Row"];

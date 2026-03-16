@@ -15,6 +15,9 @@ import {
   Menu,
   X,
   Podcast,
+  BarChart3,
+  Tag,
+  Target,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
@@ -40,9 +43,24 @@ export function Sidebar() {
       icon: <LayoutDashboard className="h-4 w-4" />,
     },
     {
+      href: "/dashboard/executive",
+      label: "Executive Report",
+      icon: <BarChart3 className="h-4 w-4" />,
+    },
+    {
       href: "/dashboard/episodes",
       label: "Episodes",
       icon: <Mic className="h-4 w-4" />,
+    },
+    {
+      href: "/dashboard/tags",
+      label: "Tags Analytics",
+      icon: <Tag className="h-4 w-4" />,
+    },
+    {
+      href: "/dashboard/goals",
+      label: "Goals",
+      icon: <Target className="h-4 w-4" />,
     },
   ];
 
