@@ -70,9 +70,9 @@ export class SoundCloudConnector implements PlatformConnector {
     startDate: string,
     endDate: string
   ): Promise<NormalizedDailyAggregate[]> {
-    if (!this.accessToken) {
+    if (!this.accessToken || this.accessToken === "xxxxxxxx" || this.accessToken.length < 10) {
       console.warn(
-        "SoundCloud credentials not configured, returning empty results"
+        "SoundCloud credentials not configured or placeholder token detected, returning empty results"
       );
       return [];
     }
@@ -147,9 +147,9 @@ export class SoundCloudConnector implements PlatformConnector {
     startDate: string,
     endDate: string
   ): Promise<NormalizedEpisodeMetric[]> {
-    if (!this.accessToken) {
+    if (!this.accessToken || this.accessToken === "xxxxxxxx" || this.accessToken.length < 10) {
       console.warn(
-        "SoundCloud credentials not configured, returning empty results"
+        "SoundCloud credentials not configured or placeholder token detected, returning empty results"
       );
       return [];
     }

@@ -1,11 +1,10 @@
 import { NextResponse, type NextRequest } from "next/server";
-import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { fetchAndParseRSS } from "@/lib/rss-import";
 
 export async function GET(request: NextRequest) {
   try {
-    const supabase = createClient();
+    const supabase = createAdminClient();
     const searchParams = request.nextUrl.searchParams;
 
     const search = searchParams.get("search") || "";
@@ -86,11 +85,10 @@ export async function GET(request: NextRequest) {
       page,
       pageSize,
     });
-  } catch {
-    return NextResponse.json(
-      { message: "Internal server error" },
-      { status: 500 }
-    );
+  } catch (err) {
+    console.error("Episodes GET error:", err);
+    const message = err instanceof Error ? err.message : "Internal server error";
+    return NextResponse.json({ message }, { status: 500 });
   }
 }
 

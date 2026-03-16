@@ -3,6 +3,7 @@ import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getConnector } from "@/lib/connectors/types";
 import { PLATFORMS } from "@/lib/constants";
+import { fetchAndParseRSS } from "@/lib/rss-import";
 import type { NormalizedDailyAggregate, NormalizedEpisodeMetric } from "@/lib/connectors/types";
 
 interface SyncResult {
@@ -11,6 +12,25 @@ interface SyncResult {
   records: number;
   error?: string;
 }
+
+function timeoutPromise<T>(promise: Promise<T>, ms: number, label: string): Promise<T> {
+  return new Promise<T>((resolve, reject) => {
+    const timer = setTimeout(() => {
+      reject(new Error(`${label} timed out after ${ms}ms`));
+    }, ms);
+    promise
+      .then((val) => {
+        clearTimeout(timer);
+        resolve(val);
+      })
+      .catch((err) => {
+        clearTimeout(timer);
+        reject(err);
+      });
+  });
+}
+
+const CONNECTOR_TIMEOUT_MS = 25_000;
 
 export async function POST(request: Request) {
   try {
@@ -73,7 +93,11 @@ export async function POST(request: Request) {
 
         // Fetch daily aggregates
         const aggregates: NormalizedDailyAggregate[] =
-          await connector.fetchDailyAggregates(startDate, endDate);
+          await timeoutPromise(
+            connector.fetchDailyAggregates(startDate, endDate),
+            CONNECTOR_TIMEOUT_MS,
+            `${p} fetchDailyAggregates`
+          );
 
         // Batch upsert in chunks of 50
         for (let i = 0; i < aggregates.length; i += 50) {
@@ -108,7 +132,11 @@ export async function POST(request: Request) {
         // Fetch episode metrics if available
         if (connector.fetchEpisodeMetrics) {
           const metrics: NormalizedEpisodeMetric[] =
-            await connector.fetchEpisodeMetrics(startDate, endDate);
+            await timeoutPromise(
+              connector.fetchEpisodeMetrics(startDate, endDate),
+              CONNECTOR_TIMEOUT_MS,
+              `${p} fetchEpisodeMetrics`
+            );
 
           for (let i = 0; i < metrics.length; i += 50) {
             const chunk = metrics.slice(i, i + 50);
@@ -192,7 +220,43 @@ export async function POST(request: Request) {
       }
     }
 
-    return NextResponse.json({ results });
+    // Auto-import episodes from RSS feed
+    const rssFeedUrl = process.env.RSS_FEED_URL;
+    let rssImported = 0;
+    if (rssFeedUrl) {
+      try {
+        const parsed = await fetchAndParseRSS(rssFeedUrl);
+
+        for (let i = 0; i < parsed.length; i += 50) {
+          const chunk = parsed.slice(i, i + 50);
+          const rows = chunk.map((ep) => ({
+            title: ep.title,
+            description: ep.description || null,
+            audio_url: ep.audioUrl || null,
+            duration_seconds: ep.durationSeconds || null,
+            publish_date: ep.publishDate || null,
+            series: ep.series,
+            tags: ep.tags.length > 0 ? ep.tags : null,
+          }));
+
+          const { error: rssError } = await supabaseAdmin
+            .from("episodes")
+            .upsert(rows as never[], { onConflict: "title" });
+
+          if (rssError) {
+            console.error("RSS episode upsert error:", rssError.message);
+            break;
+          }
+          rssImported += chunk.length;
+        }
+
+        console.log(`RSS auto-import: ${rssImported} episodes processed`);
+      } catch (rssErr) {
+        console.error("RSS auto-import failed:", rssErr);
+      }
+    }
+
+    return NextResponse.json({ results, rssImported });
   } catch {
     return NextResponse.json(
       { message: "Internal server error" },

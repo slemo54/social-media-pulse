@@ -36,12 +36,22 @@ export class YouTubeConnector implements PlatformConnector {
   private clientSecret: string;
   private refreshToken: string;
   private channelId: string;
+  private apiKey: string;
 
   constructor() {
     this.clientId = process.env.YOUTUBE_CLIENT_ID || "";
     this.clientSecret = process.env.YOUTUBE_CLIENT_SECRET || "";
-    this.refreshToken = process.env.YOUTUBE_REFRESH_TOKEN || "";
+    this.refreshToken = process.env.YOUTUBE_OAUTH_REFRESH_TOKEN || "";
     this.channelId = process.env.YOUTUBE_CHANNEL_ID || "";
+    this.apiKey = process.env.YOUTUBE_API_KEY || "";
+
+    console.log("YouTube connector initialized:", {
+      hasClientId: !!this.clientId,
+      hasClientSecret: !!this.clientSecret,
+      hasRefreshToken: !!this.refreshToken,
+      hasChannelId: !!this.channelId,
+      hasApiKey: !!this.apiKey,
+    });
   }
 
   private async getAccessToken(): Promise<string> {
@@ -76,7 +86,7 @@ export class YouTubeConnector implements PlatformConnector {
   ): Promise<NormalizedDailyAggregate[]> {
     if (!this.clientId || !this.clientSecret || !this.refreshToken) {
       console.warn(
-        "YouTube credentials not configured, returning empty results"
+        "YouTube OAuth credentials not configured (need YOUTUBE_CLIENT_ID, YOUTUBE_CLIENT_SECRET, YOUTUBE_OAUTH_REFRESH_TOKEN), returning empty results"
       );
       return [];
     }
@@ -137,7 +147,7 @@ export class YouTubeConnector implements PlatformConnector {
   ): Promise<NormalizedEpisodeMetric[]> {
     if (!this.clientId || !this.clientSecret || !this.refreshToken) {
       console.warn(
-        "YouTube credentials not configured, returning empty results"
+        "YouTube OAuth credentials not configured (need YOUTUBE_CLIENT_ID, YOUTUBE_CLIENT_SECRET, YOUTUBE_OAUTH_REFRESH_TOKEN), returning empty results"
       );
       return [];
     }
@@ -203,11 +213,18 @@ export class YouTubeConnector implements PlatformConnector {
       });
       if (pageToken) params.set("pageToken", pageToken);
 
+      // Data API supports API key auth as fallback
+      if (this.apiKey) {
+        params.set("key", this.apiKey);
+      }
+
+      const headers: Record<string, string> = accessToken
+        ? { Authorization: `Bearer ${accessToken}` }
+        : {};
+
       const response = await fetch(
         `https://www.googleapis.com/youtube/v3/search?${params}`,
-        {
-          headers: { Authorization: `Bearer ${accessToken}` },
-        }
+        { headers }
       );
 
       if (!response.ok) {
