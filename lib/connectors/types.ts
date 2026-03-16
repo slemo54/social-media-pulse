@@ -39,7 +39,10 @@ export interface PlatformConnector {
   ): Promise<NormalizedEpisodeMetric[]>;
 }
 
-export function getConnector(platform: string): PlatformConnector {
+export function getConnector(
+  platform: string,
+  config?: Record<string, string>
+): PlatformConnector {
   switch (platform) {
     case "megaphone":
       return new (require("./megaphone").MegaphoneConnector)();
@@ -48,7 +51,9 @@ export function getConnector(platform: string): PlatformConnector {
     case "ga4":
       return new (require("./ga4").GA4Connector)();
     case "soundcloud":
-      return new (require("./soundcloud").SoundCloudConnector)();
+      return new (require("./soundcloud").SoundCloudConnector)(
+        config?.access_token
+      );
     default:
       throw new Error(`Unknown platform: ${platform}`);
   }

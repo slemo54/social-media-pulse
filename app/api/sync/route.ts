@@ -88,7 +88,17 @@ export async function POST(request: Request) {
           } as never)
           .eq("platform", p);
 
-        const connector = getConnector(p);
+        // Fetch platform config (e.g. OAuth tokens stored after authorization)
+        const { data: dsRow } = await supabaseAdmin
+          .from("data_sources")
+          .select("config")
+          .eq("platform", p)
+          .maybeSingle();
+        const platformConfig =
+          (dsRow as unknown as { config?: Record<string, string> } | null)
+            ?.config ?? {};
+
+        const connector = getConnector(p, platformConfig);
 
         // Fetch daily aggregates
         const aggregates: NormalizedDailyAggregate[] =

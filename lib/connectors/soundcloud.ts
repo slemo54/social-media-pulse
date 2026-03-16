@@ -19,10 +19,11 @@ export class SoundCloudConnector implements PlatformConnector {
   private clientSecret: string;
   private accessToken: string;
 
-  constructor() {
+  constructor(accessTokenOverride?: string) {
     this.clientId = process.env.SOUNDCLOUD_CLIENT_ID || "";
     this.clientSecret = process.env.SOUNDCLOUD_CLIENT_SECRET || "";
-    this.accessToken = process.env.SOUNDCLOUD_ACCESS_TOKEN || "";
+    this.accessToken =
+      accessTokenOverride || process.env.SOUNDCLOUD_ACCESS_TOKEN || "";
   }
 
   private get headers(): Record<string, string> {
