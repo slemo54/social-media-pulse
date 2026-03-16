@@ -15,9 +15,11 @@ function getSupabaseBrowserClient() {
 export function useAuth() {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
-  const [supabase] = useState(() => getSupabaseBrowserClient());
 
+  // useEffect only runs in the browser — safe to create the Supabase client here
   useEffect(() => {
+    const supabase = getSupabaseBrowserClient();
+
     supabase.auth.getSession().then(({ data: { session } }) => {
       setUser(session?.user ?? null);
       setLoading(false);
@@ -31,42 +33,31 @@ export function useAuth() {
     });
 
     return () => subscription.unsubscribe();
-  }, [supabase]);
+  }, []);
 
-  const signIn = useCallback(
-    async (email: string, password: string) => {
-      const { data, error } = await supabase.auth.signInWithPassword({
-        email,
-        password,
-      });
-      if (error) throw error;
-      return data;
-    },
-    [supabase]
-  );
+  // Callbacks also only execute in the browser (user interaction / event handlers)
+  const signIn = useCallback(async (email: string, password: string) => {
+    const supabase = getSupabaseBrowserClient();
+    const { data, error } = await supabase.auth.signInWithPassword({
+      email,
+      password,
+    });
+    if (error) throw error;
+    return data;
+  }, []);
 
-  const signUp = useCallback(
-    async (email: string, password: string) => {
-      const { data, error } = await supabase.auth.signUp({
-        email,
-        password,
-      });
-      if (error) throw error;
-      return data;
-    },
-    [supabase]
-  );
+  const signUp = useCallback(async (email: string, password: string) => {
+    const supabase = getSupabaseBrowserClient();
+    const { data, error } = await supabase.auth.signUp({ email, password });
+    if (error) throw error;
+    return data;
+  }, []);
 
   const signOut = useCallback(async () => {
+    const supabase = getSupabaseBrowserClient();
     const { error } = await supabase.auth.signOut();
     if (error) throw error;
-  }, [supabase]);
+  }, []);
 
-  return {
-    user,
-    loading,
-    signIn,
-    signUp,
-    signOut,
-  };
+  return { user, loading, signIn, signUp, signOut };
 }
