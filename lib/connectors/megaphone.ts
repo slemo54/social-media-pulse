@@ -11,6 +11,11 @@ interface MegaphoneEpisode {
   pubdate: string;
 }
 
+interface MegaphoneDownloadStat {
+  date: string;
+  downloads: number;
+}
+
 const MEGAPHONE_BASE_URL = "https://cms.megaphone.fm/api";
 
 export class MegaphoneConnector implements PlatformConnector {
@@ -35,7 +40,7 @@ export class MegaphoneConnector implements PlatformConnector {
 
   private async fetchEpisodes(): Promise<MegaphoneEpisode[]> {
     try {
-      const url = `${MEGAPHONE_BASE_URL}/search/episodes?networkId=${this.networkId}&podcastId=${this.podcastId}`;
+      const url = `${MEGAPHONE_BASE_URL}/networks/${this.networkId}/podcasts/${this.podcastId}/episodes`;
       const response = await fetch(url, { headers: this.headers });
 
       if (!response.ok) {
@@ -53,8 +58,8 @@ export class MegaphoneConnector implements PlatformConnector {
   }
 
   async fetchDailyAggregates(
-    _startDate: string,
-    _endDate: string
+    startDate: string,
+    endDate: string
   ): Promise<NormalizedDailyAggregate[]> {
     if (!this.apiKey || !this.networkId || !this.podcastId) {
       console.warn(
@@ -63,17 +68,35 @@ export class MegaphoneConnector implements PlatformConnector {
       return [];
     }
 
-    // Megaphone CMS API does not expose a stats/analytics endpoint.
-    // Daily aggregate downloads are not available via this API.
-    console.warn(
-      "Megaphone CMS API does not provide analytics — returning empty daily aggregates"
-    );
-    return [];
+    try {
+      const url = `${MEGAPHONE_BASE_URL}/networks/${this.networkId}/podcasts/${this.podcastId}/download_stats?startDate=${startDate}&endDate=${endDate}`;
+      const response = await fetch(url, { headers: this.headers });
+
+      if (!response.ok) {
+        throw new Error(
+          `Megaphone Analytics API error: ${response.status} ${response.statusText}`
+        );
+      }
+
+      const data = await response.json();
+      const rows: MegaphoneDownloadStat[] = Array.isArray(data)
+        ? data
+        : data.stats || [];
+
+      return rows.map((row) => ({
+        platform: this.platform,
+        date: row.date,
+        downloads: row.downloads || 0,
+      }));
+    } catch (error) {
+      console.error("Megaphone fetchDailyAggregates failed:", error);
+      throw error;
+    }
   }
 
   async fetchEpisodeMetrics(
-    _startDate: string,
-    _endDate: string
+    startDate: string,
+    endDate: string
   ): Promise<NormalizedEpisodeMetric[]> {
     if (!this.apiKey || !this.networkId || !this.podcastId) {
       console.warn(
@@ -82,11 +105,50 @@ export class MegaphoneConnector implements PlatformConnector {
       return [];
     }
 
-    // Megaphone CMS API does not expose per-episode stats.
-    // Episode-level metrics are not available via this API.
-    console.warn(
-      "Megaphone CMS API does not provide episode metrics — returning empty results"
-    );
-    return [];
+    try {
+      const episodes = await this.fetchEpisodes();
+      const metrics: NormalizedEpisodeMetric[] = [];
+
+      for (const episode of episodes) {
+        try {
+          const url = `${MEGAPHONE_BASE_URL}/networks/${this.networkId}/podcasts/${this.podcastId}/episodes/${episode.id}/download_stats?startDate=${startDate}&endDate=${endDate}`;
+          const response = await fetch(url, { headers: this.headers });
+
+          if (!response.ok) {
+            console.warn(
+              `Failed to fetch download stats for episode ${episode.id}: ${response.status}`
+            );
+            continue;
+          }
+
+          const data = await response.json();
+          const rows: MegaphoneDownloadStat[] = Array.isArray(data)
+            ? data
+            : data.stats || [];
+
+          for (const row of rows) {
+            metrics.push({
+              platform: this.platform,
+              external_id: episode.id,
+              episode_title: episode.title,
+              date: row.date,
+              downloads: row.downloads || 0,
+            });
+          }
+        } catch (err) {
+          console.warn(
+            `Failed to fetch metrics for episode ${episode.id}:`,
+            err
+          );
+        }
+      }
+
+      return metrics.sort(
+        (a, b) => new Date(a.date).getTime() - new Date(b.date).getTime()
+      );
+    } catch (error) {
+      console.error("Megaphone fetchEpisodeMetrics failed:", error);
+      throw error;
+    }
   }
 }

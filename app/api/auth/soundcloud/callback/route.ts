@@ -40,21 +40,24 @@ export async function GET(request: NextRequest) {
 
     const tokenData = (await tokenResponse.json()) as {
       access_token: string;
+      refresh_token?: string;
     };
 
-    // Store the access token in data_sources
+    // Store the access token in data_sources.config
     const supabaseAdmin = createAdminClient();
     await supabaseAdmin
       .from("data_sources")
       .update({
         api_key_configured: true,
+        config: {
+          access_token: tokenData.access_token,
+          ...(tokenData.refresh_token
+            ? { refresh_token: tokenData.refresh_token }
+            : {}),
+        },
         updated_at: new Date().toISOString(),
       } as never)
       .eq("platform", "soundcloud");
-
-    // In production, store tokenData.access_token securely
-    // For now, we mark the data source as configured
-    void tokenData.access_token;
 
     return new NextResponse(
       `<html><body><h1>SoundCloud Connected!</h1><p>You can close this window.</p><script>setTimeout(()=>{window.opener?.postMessage('soundcloud-connected','*');window.close()},2000)</script></body></html>`,
