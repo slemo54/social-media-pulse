@@ -7,20 +7,17 @@ CREATE TABLE daily_aggregates (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   platform text NOT NULL,
   date date NOT NULL,
-  downloads int,
-  views int,
+  total_downloads int,
+  unique_listeners int,
+  total_views int,
+  total_watch_time float,
+  pageviews int,
   sessions int,
-  listeners int,
-  watch_time_minutes float,
-  likes int,
-  comments int,
-  shares int,
-  subscribers_gained int,
-  page_views int,
-  avg_session_duration float,
+  users int,
   bounce_rate float,
+  avg_completion_rate float,
+  raw_data jsonb,
   created_at timestamptz DEFAULT now(),
-  updated_at timestamptz DEFAULT now(),
   UNIQUE (platform, date)
 );
 
@@ -29,12 +26,13 @@ CREATE TABLE episodes (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   title text NOT NULL,
   description text,
-  audio_url text,
-  duration_seconds int,
-  publish_date date,
   series text,
-  tags text[],
-  external_ids jsonb DEFAULT '{}',
+  pub_date date,
+  audio_url text,
+  image_url text,
+  duration int,
+  external_id text,
+  rss_guid text,
   created_at timestamptz DEFAULT now(),
   updated_at timestamptz DEFAULT now()
 );
@@ -59,11 +57,12 @@ CREATE TABLE episode_metrics (
 CREATE TABLE data_sources (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   platform text UNIQUE NOT NULL,
-  api_key_configured boolean DEFAULT false,
+  display_name text,
+  is_active boolean DEFAULT true,
+  config jsonb,
   last_sync_at timestamptz,
   last_sync_status text,
   last_sync_error text,
-  records_synced int DEFAULT 0,
   created_at timestamptz DEFAULT now(),
   updated_at timestamptz DEFAULT now()
 );
@@ -81,9 +80,9 @@ CREATE TABLE sync_logs (
   platform text NOT NULL,
   sync_type text NOT NULL,
   status text NOT NULL,
-  records_count int DEFAULT 0,
+  records_synced int DEFAULT 0,
   error_message text,
-  started_at timestamptz DEFAULT now(),
+  created_at timestamptz DEFAULT now(),
   completed_at timestamptz
 );
 
@@ -92,7 +91,7 @@ CREATE TABLE sync_logs (
 -- ============================================================
 CREATE INDEX idx_daily_aggregates_date ON daily_aggregates(date);
 CREATE INDEX idx_daily_aggregates_platform ON daily_aggregates(platform);
-CREATE INDEX idx_episodes_publish_date ON episodes(publish_date);
+CREATE INDEX idx_episodes_publish_date ON episodes(pub_date);
 CREATE INDEX idx_episode_metrics_date ON episode_metrics(date);
 
 -- ============================================================
