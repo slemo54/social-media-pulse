@@ -45,19 +45,27 @@ export async function GET(request: NextRequest) {
 
     // Store the access token in data_sources.config
     const supabaseAdmin = createAdminClient();
-    await supabaseAdmin
+    const { error: updateError } = await supabaseAdmin
       .from("data_sources")
       .update({
-        api_key_configured: true,
         config: {
           access_token: tokenData.access_token,
           ...(tokenData.refresh_token
             ? { refresh_token: tokenData.refresh_token }
             : {}),
         },
+        last_sync_status: null,
+        last_sync_error: null,
         updated_at: new Date().toISOString(),
       } as never)
       .eq("platform", "soundcloud");
+
+    if (updateError) {
+      return new NextResponse(
+        `<html><body><h1>Error saving token</h1><p>${updateError.message}</p><script>setTimeout(()=>window.close(),3000)</script></body></html>`,
+        { headers: { "Content-Type": "text/html" } }
+      );
+    }
 
     return new NextResponse(
       `<html><body><h1>SoundCloud Connected!</h1><p>You can close this window.</p><script>setTimeout(()=>{window.opener?.postMessage('soundcloud-connected','*');window.close()},2000)</script></body></html>`,

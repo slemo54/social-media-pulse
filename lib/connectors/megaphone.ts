@@ -68,7 +68,7 @@ export class MegaphoneConnector implements PlatformConnector {
     }
 
     try {
-      const url = `${MEGAPHONE_BASE_URL}/networks/${this.networkId}/podcasts/${this.podcastId}/download_stats?startDate=${startDate}&endDate=${endDate}`;
+      const url = `${MEGAPHONE_BASE_URL}/networks/${this.networkId}/podcasts/${this.podcastId}/downloads?startDate=${startDate}&endDate=${endDate}`;
       const response = await fetch(url, { headers: this.headers });
 
       if (!response.ok) {
@@ -109,7 +109,7 @@ export class MegaphoneConnector implements PlatformConnector {
 
       for (const episode of episodes) {
         try {
-          const url = `${MEGAPHONE_BASE_URL}/networks/${this.networkId}/podcasts/${this.podcastId}/episodes/${episode.id}/download_stats?startDate=${startDate}&endDate=${endDate}`;
+          const url = `${MEGAPHONE_BASE_URL}/networks/${this.networkId}/podcasts/${this.podcastId}/episodes/${episode.id}/downloads?startDate=${startDate}&endDate=${endDate}`;
           const response = await fetch(url, { headers: this.headers });
 
           if (!response.ok) {

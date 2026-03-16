@@ -146,17 +146,22 @@ export class YouTubeConnector implements PlatformConnector {
     endDate: string
   ): Promise<NormalizedEpisodeMetric[]> {
     if (!this.clientId || !this.clientSecret || !this.refreshToken) {
-      console.warn(
-        "YouTube OAuth credentials not configured (need YOUTUBE_CLIENT_ID, YOUTUBE_CLIENT_SECRET, YOUTUBE_OAUTH_REFRESH_TOKEN), returning empty results"
-      );
       return [];
     }
 
     try {
       const accessToken = await this.getAccessToken();
 
-      // Get channel videos
-      const videos = await this.fetchChannelVideos(accessToken);
+      // Get channel videos — if this fails (e.g. wrong channelId or quota),
+      // log a warning and return empty rather than failing the entire sync.
+      let videos: YouTubeVideoItem[];
+      try {
+        videos = await this.fetchChannelVideos(accessToken);
+      } catch (err) {
+        console.warn("YouTube fetchChannelVideos failed, skipping episode metrics:", err);
+        return [];
+      }
+
       const metrics: NormalizedEpisodeMetric[] = [];
 
       for (const video of videos) {
@@ -193,7 +198,7 @@ export class YouTubeConnector implements PlatformConnector {
       );
     } catch (error) {
       console.error("YouTube fetchEpisodeMetrics failed:", error);
-      throw error;
+      return [];
     }
   }
 
