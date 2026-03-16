@@ -30,6 +30,7 @@ export default function LoginPage() {
         setIsSignUp(false);
       } else {
         await signIn(email, password);
+        router.refresh();
         router.push("/dashboard");
       }
     } catch (err) {
