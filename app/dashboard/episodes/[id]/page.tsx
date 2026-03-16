@@ -5,6 +5,8 @@ import { useQuery } from "@tanstack/react-query";
 import { ArrowLeft, Clock, Calendar } from "lucide-react";
 import { Header } from "@/components/dashboard/header";
 import { PlatformChart } from "@/components/dashboard/platform-chart";
+import { EpisodeLifecycle } from "@/components/dashboard/episode-lifecycle";
+import { AnomalyBadge } from "@/components/dashboard/anomaly-badge";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -21,6 +23,7 @@ interface EpisodeDetail {
   duration: number | null;
   pub_date: string | null;
   series: string | null;
+  tags: string[] | null;
 }
 
 interface EpisodeMetricRow {
@@ -33,6 +36,10 @@ interface EpisodeMetricRow {
   likes: number | null;
   comments: number | null;
   watch_time_minutes: number | null;
+}
+
+interface SeriesAvgData {
+  avgDownloads: number;
 }
 
 export default function EpisodeDetailPage() {
@@ -76,6 +83,27 @@ export default function EpisodeDetailPage() {
     });
   }
 
+  // Total downloads for anomaly badge
+  const totalDownloads = Array.from(platformTotals.values()).reduce(
+    (s, v) => s + v.downloads,
+    0
+  );
+
+  // Fetch series average for anomaly detection
+  const { data: seriesAvgData } = useQuery<SeriesAvgData>({
+    queryKey: ["series-avg", episode?.series],
+    enabled: !!episode?.series,
+    queryFn: async () => {
+      const res = await fetch(`/api/executive?startDate=2020-01-01&endDate=${new Date().toISOString().split("T")[0]}`);
+      if (!res.ok) return { avgDownloads: 0 };
+      const execData = await res.json();
+      const seriesEntry = execData.seriesPerformance?.find(
+        (s: { series: string }) => s.series === episode?.series
+      );
+      return { avgDownloads: seriesEntry?.avgDownloads || 0 };
+    },
+  });
+
   // Chart data: group by date with platform values
   const chartByDate = new Map<string, Record<string, unknown>>();
   for (const m of metrics) {
@@ -91,6 +119,42 @@ export default function EpisodeDetailPage() {
   const chartPlatforms = Array.from(
     new Set(metrics.map((m) => m.platform))
   ).filter((p) => PLATFORMS.includes(p as (typeof PLATFORMS)[number]));
+
+  // Build lifecycle data: cumulative downloads since pub_date
+  const lifecycleData = (() => {
+    if (!episode?.pub_date || metrics.length === 0) return [];
+    const pubDate = new Date(episode.pub_date + "T00:00:00Z");
+
+    // Sort metrics by date
+    const sorted = [...metrics].sort((a, b) => a.date.localeCompare(b.date));
+
+    // Accumulate daily downloads
+    let cumulative = 0;
+    const curve: { day: number; value: number }[] = [];
+    const seenDays = new Set<number>();
+
+    for (const m of sorted) {
+      const metricDate = new Date(m.date + "T00:00:00Z");
+      const dayDiff = Math.floor(
+        (metricDate.getTime() - pubDate.getTime()) / 86400000
+      );
+      if (dayDiff < 0 || dayDiff > 30) continue;
+      cumulative += (m.downloads || 0) + (m.views || 0);
+      if (!seenDays.has(dayDiff)) {
+        seenDays.add(dayDiff);
+        curve.push({ day: dayDiff, value: cumulative });
+      }
+    }
+
+    return [
+      {
+        episodeId: episode.id,
+        title: episode.title,
+        pubDate: episode.pub_date || "",
+        curve,
+      },
+    ];
+  })();
 
   return (
     <div className="flex flex-col">
@@ -141,6 +205,15 @@ export default function EpisodeDetailPage() {
                 {episode.series && (
                   <Badge variant="default">{episode.series}</Badge>
                 )}
+                {(episode.tags || []).map((tag) => (
+                  <Badge key={tag} variant="outline" className="text-xs">
+                    {tag}
+                  </Badge>
+                ))}
+                <AnomalyBadge
+                  episodeDownloads={totalDownloads}
+                  seriesAvgDownloads={seriesAvgData?.avgDownloads || 0}
+                />
               </div>
               {episode.description && (
                 <p className="text-sm text-muted-foreground leading-relaxed max-w-3xl">
@@ -210,6 +283,11 @@ export default function EpisodeDetailPage() {
                 metric="performance"
                 title="Episode Performance Over Time"
               />
+            )}
+
+            {/* Lifecycle Chart */}
+            {lifecycleData.length > 0 && (
+              <EpisodeLifecycle episodes={lifecycleData} metric="downloads" />
             )}
           </>
         ) : (
