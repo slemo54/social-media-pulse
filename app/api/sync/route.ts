@@ -255,8 +255,20 @@ export async function POST(request: Request) {
       try {
         const parsed = await fetchAndParseRSS(rssFeedUrl);
 
-        for (let i = 0; i < parsed.length; i += 50) {
-          const chunk = parsed.slice(i, i + 50);
+        // Fetch existing titles to avoid duplicates
+        const { data: existingEps } = await supabaseAdmin
+          .from("episodes")
+          .select("title");
+        const existingTitles = new Set(
+          (existingEps || []).map((e: { title: string }) => e.title)
+        );
+
+        const newEpisodes = parsed.filter(
+          (ep) => !existingTitles.has(ep.title)
+        );
+
+        for (let i = 0; i < newEpisodes.length; i += 50) {
+          const chunk = newEpisodes.slice(i, i + 50);
           const rows = chunk.map((ep) => ({
             title: ep.title,
             description: ep.description || null,
@@ -268,16 +280,16 @@ export async function POST(request: Request) {
 
           const { error: rssError } = await supabaseAdmin
             .from("episodes")
-            .upsert(rows as never[], { onConflict: "title" });
+            .insert(rows as never[]);
 
           if (rssError) {
-            console.error("RSS episode upsert error:", rssError.message);
+            console.error("RSS episode insert error:", rssError.message);
             break;
           }
           rssImported += chunk.length;
         }
 
-        console.log(`RSS auto-import: ${rssImported} episodes processed`);
+        console.log(`RSS auto-import: ${rssImported} new episodes added`);
       } catch (rssErr) {
         console.error("RSS auto-import failed:", rssErr);
       }

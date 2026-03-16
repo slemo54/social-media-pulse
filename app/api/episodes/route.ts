@@ -106,9 +106,19 @@ export async function POST(request: Request) {
     const parsed = await fetchAndParseRSS(feedUrl);
     const supabaseAdmin = createAdminClient();
 
+    // Fetch existing titles to avoid duplicates (no UNIQUE constraint on title)
+    const { data: existingEps } = await supabaseAdmin
+      .from("episodes")
+      .select("title");
+    const existingTitles = new Set(
+      (existingEps || []).map((e: { title: string }) => e.title)
+    );
+
+    const newEpisodes = parsed.filter((ep) => !existingTitles.has(ep.title));
+
     let imported = 0;
-    for (let i = 0; i < parsed.length; i += 50) {
-      const chunk = parsed.slice(i, i + 50);
+    for (let i = 0; i < newEpisodes.length; i += 50) {
+      const chunk = newEpisodes.slice(i, i + 50);
       const rows = chunk.map((ep) => ({
         title: ep.title,
         description: ep.description || null,
@@ -120,7 +130,7 @@ export async function POST(request: Request) {
 
       const { error } = await supabaseAdmin
         .from("episodes")
-        .upsert(rows as never[], { onConflict: "title" });
+        .insert(rows as never[]);
 
       if (error) throw error;
       imported += chunk.length;
