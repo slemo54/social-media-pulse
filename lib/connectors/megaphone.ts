@@ -62,10 +62,9 @@ export class MegaphoneConnector implements PlatformConnector {
     endDate: string
   ): Promise<NormalizedDailyAggregate[]> {
     if (!this.apiKey || !this.networkId || !this.podcastId) {
-      console.warn(
-        "Megaphone credentials not configured, returning empty results"
+      throw new Error(
+        "Megaphone not configured. Set MEGAPHONE_API_KEY, MEGAPHONE_NETWORK_ID, and MEGAPHONE_PODCAST_ID environment variables."
       );
-      return [];
     }
 
     try {
@@ -99,10 +98,9 @@ export class MegaphoneConnector implements PlatformConnector {
     endDate: string
   ): Promise<NormalizedEpisodeMetric[]> {
     if (!this.apiKey || !this.networkId || !this.podcastId) {
-      console.warn(
-        "Megaphone credentials not configured, returning empty results"
+      throw new Error(
+        "Megaphone not configured. Set MEGAPHONE_API_KEY, MEGAPHONE_NETWORK_ID, and MEGAPHONE_PODCAST_ID environment variables."
       );
-      return [];
     }
 
     try {

@@ -72,10 +72,9 @@ export class SoundCloudConnector implements PlatformConnector {
     endDate: string
   ): Promise<NormalizedDailyAggregate[]> {
     if (!this.accessToken || this.accessToken === "xxxxxxxx" || this.accessToken.length < 10) {
-      console.warn(
-        "SoundCloud credentials not configured or placeholder token detected, returning empty results"
+      throw new Error(
+        "SoundCloud not configured. Complete OAuth at Settings → Connect SoundCloud, or set SOUNDCLOUD_ACCESS_TOKEN environment variable."
       );
-      return [];
     }
 
     try {
@@ -149,10 +148,9 @@ export class SoundCloudConnector implements PlatformConnector {
     endDate: string
   ): Promise<NormalizedEpisodeMetric[]> {
     if (!this.accessToken || this.accessToken === "xxxxxxxx" || this.accessToken.length < 10) {
-      console.warn(
-        "SoundCloud credentials not configured or placeholder token detected, returning empty results"
+      throw new Error(
+        "SoundCloud not configured. Complete OAuth at Settings → Connect SoundCloud, or set SOUNDCLOUD_ACCESS_TOKEN environment variable."
       );
-      return [];
     }
 
     try {

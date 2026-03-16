@@ -8,6 +8,7 @@ import {
   Rss,
   CheckCircle2,
   XCircle,
+  ExternalLink,
 } from "lucide-react";
 import { Header } from "@/components/dashboard/header";
 import { SyncStatusBadge } from "@/components/dashboard/sync-status-badge";
@@ -28,6 +29,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { useToast } from "@/hooks/useToast";
 import { PLATFORM_NAMES, PLATFORM_COLORS } from "@/lib/constants";
 import { formatDate, formatNumber } from "@/lib/utils";
+import { useQueryClient } from "@tanstack/react-query";
 
 interface SyncLogRow {
   id: string;
@@ -43,6 +45,7 @@ interface SyncLogRow {
 export default function SettingsPage() {
   const { user, signOut } = useAuth();
   const { toast } = useToast();
+  const queryClient = useQueryClient();
   const { data: dataSources, isLoading: sourcesLoading } = useSyncStatus();
   const triggerSync = useTriggerSync();
   const [rssUrl, setRssUrl] = useState(
@@ -53,13 +56,39 @@ export default function SettingsPage() {
   const { data: syncLogs, isLoading: logsLoading } = useQuery<SyncLogRow[]>({
     queryKey: ["sync-logs"],
     queryFn: async () => {
-      const res = await fetch("/api/data-sources");
+      const res = await fetch("/api/sync-logs");
       if (!res.ok) return [];
-      // sync_logs would come from a separate endpoint in production
-      // For now, we return empty array
-      return [];
+      return res.json();
     },
   });
+
+  const handleConnectSoundCloud = () => {
+    const popup = window.open(
+      "/api/auth/soundcloud",
+      "soundcloud-auth",
+      "width=600,height=700,popup=yes"
+    );
+
+    const onMessage = (event: MessageEvent) => {
+      if (event.data === "soundcloud-connected") {
+        window.removeEventListener("message", onMessage);
+        queryClient.invalidateQueries({ queryKey: ["data-sources"] });
+        toast({
+          title: "SoundCloud connected",
+          description: "You can now sync SoundCloud data.",
+        });
+      }
+    };
+    window.addEventListener("message", onMessage);
+
+    // Clean up listener if popup is closed without completing
+    const checkClosed = setInterval(() => {
+      if (popup?.closed) {
+        clearInterval(checkClosed);
+        window.removeEventListener("message", onMessage);
+      }
+    }, 1000);
+  };
 
   const handleSync = (platform: string, fullSync: boolean) => {
     triggerSync.mutate(
@@ -188,6 +217,16 @@ export default function SettingsPage() {
                         )}
                       </div>
                       <div className="flex gap-2">
+                        {ds.platform === "soundcloud" && (
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={handleConnectSoundCloud}
+                          >
+                            <ExternalLink className="mr-1.5 h-3 w-3" />
+                            Connect
+                          </Button>
+                        )}
                         <Button
                           variant="outline"
                           size="sm"
