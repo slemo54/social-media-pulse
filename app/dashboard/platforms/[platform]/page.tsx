@@ -40,10 +40,10 @@ const PLATFORM_METRICS: Record<
   string,
   { primary: string; label: string }
 > = {
-  megaphone: { primary: "downloads", label: "Downloads" },
-  youtube: { primary: "views", label: "Views" },
+  megaphone: { primary: "total_downloads", label: "Downloads" },
+  youtube: { primary: "total_views", label: "Views" },
   ga4: { primary: "sessions", label: "Sessions" },
-  soundcloud: { primary: "listeners", label: "Listeners" },
+  soundcloud: { primary: "unique_listeners", label: "Listeners" },
 };
 
 export default function PlatformPage() {
@@ -76,15 +76,15 @@ export default function PlatformPage() {
       analytics.aggregates as Array<{
         date: string;
         platform: string;
-        downloads: number | null;
-        views: number | null;
+        total_downloads: number | null;
+        total_views: number | null;
         sessions: number | null;
-        listeners: number | null;
+        unique_listeners: number | null;
       }>
     ).map((row) => ({
       date: row.date,
       [platform]:
-        row.downloads || row.views || row.sessions || row.listeners || 0,
+        row.total_downloads || row.total_views || row.sessions || row.unique_listeners || 0,
     }));
   }, [analytics?.aggregates, platform]);
 
@@ -142,31 +142,31 @@ export default function PlatformPage() {
             loading={analyticsLoading}
           />
           <KPICard
-            title="Likes"
-            value={formatNumber(totals.likes || 0)}
+            title="Pageviews"
+            value={formatNumber(totals.pageviews || 0)}
             change={calculateChange(
-              totals.likes || 0,
-              prevTotals.likes || 0
+              totals.pageviews || 0,
+              prevTotals.pageviews || 0
             )}
             icon={PlatformIcon}
             loading={analyticsLoading}
           />
           <KPICard
-            title="Comments"
-            value={formatNumber(totals.comments || 0)}
+            title="Users"
+            value={formatNumber(totals.users || 0)}
             change={calculateChange(
-              totals.comments || 0,
-              prevTotals.comments || 0
+              totals.users || 0,
+              prevTotals.users || 0
             )}
             icon={PlatformIcon}
             loading={analyticsLoading}
           />
           <KPICard
-            title="Shares"
-            value={formatNumber(totals.shares || 0)}
+            title="Watch Time (min)"
+            value={formatNumber(totals.total_watch_time || 0)}
             change={calculateChange(
-              totals.shares || 0,
-              prevTotals.shares || 0
+              totals.total_watch_time || 0,
+              prevTotals.total_watch_time || 0
             )}
             icon={PlatformIcon}
             loading={analyticsLoading}

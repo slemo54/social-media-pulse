@@ -34,9 +34,9 @@ interface SyncLogRow {
   platform: string;
   sync_type: string;
   status: string;
-  records_count: number;
+  records_synced: number;
   error_message: string | null;
-  started_at: string;
+  created_at: string;
   completed_at: string | null;
 }
 
@@ -150,7 +150,7 @@ export default function SettingsPage() {
             ) : (
               <div className="grid gap-4 grid-cols-1 md:grid-cols-2">
                 {(dataSources || []).map((ds) => (
-                  <Card key={ds.id} className="border">
+                  <Card key={ds.platform} className="border">
                     <CardContent className="p-4 space-y-3">
                       <div className="flex items-center justify-between">
                         <div className="flex items-center gap-2">
@@ -165,7 +165,7 @@ export default function SettingsPage() {
                             {PLATFORM_NAMES[ds.platform] || ds.platform}
                           </span>
                         </div>
-                        {ds.api_key_configured ? (
+                        {ds.is_active ? (
                           <CheckCircle2 className="h-4 w-4 text-emerald-500" />
                         ) : (
                           <XCircle className="h-4 w-4 text-red-500" />
@@ -181,9 +181,11 @@ export default function SettingsPage() {
                             {ds.last_sync_error}
                           </p>
                         )}
-                        <p className="text-xs text-muted-foreground">
-                          Records: {formatNumber(ds.records_synced)}
-                        </p>
+                        {ds.display_name && (
+                          <p className="text-xs text-muted-foreground">
+                            {ds.display_name}
+                          </p>
+                        )}
                       </div>
                       <div className="flex gap-2">
                         <Button
@@ -272,10 +274,10 @@ export default function SettingsPage() {
                 <TableBody>
                   {(syncLogs || []).slice(0, 20).map((log) => {
                     const duration =
-                      log.completed_at && log.started_at
+                      log.completed_at && log.created_at
                         ? Math.round(
                             (new Date(log.completed_at).getTime() -
-                              new Date(log.started_at).getTime()) /
+                              new Date(log.created_at).getTime()) /
                               1000
                           )
                         : null;
@@ -292,13 +294,13 @@ export default function SettingsPage() {
                           />
                         </TableCell>
                         <TableCell className="text-right">
-                          {formatNumber(log.records_count)}
+                          {formatNumber(log.records_synced)}
                         </TableCell>
                         <TableCell className="max-w-[200px] truncate text-xs text-destructive">
                           {log.error_message || "-"}
                         </TableCell>
                         <TableCell className="text-xs">
-                          {formatDate(log.started_at, "MMM d, HH:mm")}
+                          {formatDate(log.created_at, "MMM d, HH:mm")}
                         </TableCell>
                         <TableCell className="text-xs">
                           {duration != null ? `${duration}s` : "-"}

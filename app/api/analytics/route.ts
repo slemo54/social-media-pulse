@@ -163,45 +163,37 @@ export async function GET(request: NextRequest) {
 interface AggregateRow {
   platform: string;
   date: string;
-  downloads: number | null;
-  views: number | null;
+  total_downloads: number | null;
+  unique_listeners: number | null;
+  total_views: number | null;
+  total_watch_time: number | null;
+  pageviews: number | null;
   sessions: number | null;
-  listeners: number | null;
-  watch_time_minutes: number | null;
-  likes: number | null;
-  comments: number | null;
-  shares: number | null;
-  subscribers_gained: number | null;
-  page_views: number | null;
-  avg_session_duration: number | null;
+  users: number | null;
   bounce_rate: number | null;
+  avg_completion_rate: number | null;
+  raw_data: unknown;
 }
 
 function computeTotals(rows: AggregateRow[]): Record<string, number> {
   const totals: Record<string, number> = {
-    downloads: 0,
-    views: 0,
+    total_downloads: 0,
+    total_views: 0,
     sessions: 0,
-    listeners: 0,
-    watch_time_minutes: 0,
-    likes: 0,
-    comments: 0,
-    shares: 0,
-    subscribers_gained: 0,
-    page_views: 0,
+    unique_listeners: 0,
+    total_watch_time: 0,
+    pageviews: 0,
+    users: 0,
   };
 
   for (const row of rows) {
-    totals.downloads += row.downloads || 0;
-    totals.views += row.views || 0;
+    totals.total_downloads += row.total_downloads || 0;
+    totals.total_views += row.total_views || 0;
     totals.sessions += row.sessions || 0;
-    totals.listeners += row.listeners || 0;
-    totals.watch_time_minutes += row.watch_time_minutes || 0;
-    totals.likes += row.likes || 0;
-    totals.comments += row.comments || 0;
-    totals.shares += row.shares || 0;
-    totals.subscribers_gained += row.subscribers_gained || 0;
-    totals.page_views += row.page_views || 0;
+    totals.unique_listeners += row.unique_listeners || 0;
+    totals.total_watch_time += row.total_watch_time || 0;
+    totals.pageviews += row.pageviews || 0;
+    totals.users += row.users || 0;
   }
 
   return totals;
@@ -240,40 +232,33 @@ function groupByPeriod(
     const summed: AggregateRow = {
       platform,
       date,
-      downloads: null,
-      views: null,
+      total_downloads: null,
+      unique_listeners: null,
+      total_views: null,
+      total_watch_time: null,
+      pageviews: null,
       sessions: null,
-      listeners: null,
-      watch_time_minutes: null,
-      likes: null,
-      comments: null,
-      shares: null,
-      subscribers_gained: null,
-      page_views: null,
-      avg_session_duration: null,
+      users: null,
       bounce_rate: null,
+      avg_completion_rate: null,
+      raw_data: null,
     };
 
     for (const r of groupRows) {
-      if (r.downloads != null)
-        summed.downloads = (summed.downloads || 0) + r.downloads;
-      if (r.views != null) summed.views = (summed.views || 0) + r.views;
+      if (r.total_downloads != null)
+        summed.total_downloads = (summed.total_downloads || 0) + r.total_downloads;
+      if (r.total_views != null)
+        summed.total_views = (summed.total_views || 0) + r.total_views;
       if (r.sessions != null)
         summed.sessions = (summed.sessions || 0) + r.sessions;
-      if (r.listeners != null)
-        summed.listeners = (summed.listeners || 0) + r.listeners;
-      if (r.watch_time_minutes != null)
-        summed.watch_time_minutes =
-          (summed.watch_time_minutes || 0) + r.watch_time_minutes;
-      if (r.likes != null) summed.likes = (summed.likes || 0) + r.likes;
-      if (r.comments != null)
-        summed.comments = (summed.comments || 0) + r.comments;
-      if (r.shares != null) summed.shares = (summed.shares || 0) + r.shares;
-      if (r.subscribers_gained != null)
-        summed.subscribers_gained =
-          (summed.subscribers_gained || 0) + r.subscribers_gained;
-      if (r.page_views != null)
-        summed.page_views = (summed.page_views || 0) + r.page_views;
+      if (r.unique_listeners != null)
+        summed.unique_listeners = (summed.unique_listeners || 0) + r.unique_listeners;
+      if (r.total_watch_time != null)
+        summed.total_watch_time = (summed.total_watch_time || 0) + r.total_watch_time;
+      if (r.pageviews != null)
+        summed.pageviews = (summed.pageviews || 0) + r.pageviews;
+      if (r.users != null)
+        summed.users = (summed.users || 0) + r.users;
     }
 
     result.push(summed);

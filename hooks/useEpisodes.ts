@@ -13,10 +13,9 @@ interface EpisodeRow {
   title: string;
   description: string | null;
   audio_url: string | null;
-  duration_seconds: number | null;
-  publish_date: string | null;
+  duration: number | null;
+  pub_date: string | null;
   series: string | null;
-  tags: string[] | null;
   downloads?: number | null;
   views?: number | null;
 }

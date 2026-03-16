@@ -17,7 +17,7 @@ interface EpisodeRow {
   id: string;
   title: string;
   series?: string | null;
-  publish_date?: string | null;
+  pub_date?: string | null;
   downloads?: number | null;
   views?: number | null;
 }
@@ -109,7 +109,7 @@ export function EpisodeTable({
         <TableRow>
           <TableHead>{sortableHeader("Title", "title")}</TableHead>
           <TableHead>{sortableHeader("Series", "series")}</TableHead>
-          <TableHead>{sortableHeader("Published", "publish_date")}</TableHead>
+          <TableHead>{sortableHeader("Published", "pub_date")}</TableHead>
           <TableHead className="text-right">
             {sortableHeader("Downloads", "downloads")}
           </TableHead>
@@ -142,8 +142,8 @@ export function EpisodeTable({
                 )}
               </TableCell>
               <TableCell>
-                {episode.publish_date
-                  ? formatDate(episode.publish_date)
+                {episode.pub_date
+                  ? formatDate(episode.pub_date)
                   : "-"}
               </TableCell>
               <TableCell

@@ -18,16 +18,15 @@ interface EpisodeDetail {
   title: string;
   description: string | null;
   audio_url: string | null;
-  duration_seconds: number | null;
-  publish_date: string | null;
+  duration: number | null;
+  pub_date: string | null;
   series: string | null;
-  tags: string[] | null;
 }
 
 interface EpisodeMetricRow {
-  id: string;
   episode_id: string;
   platform: string;
+  external_id: string;
   date: string;
   downloads: number | null;
   views: number | null;
@@ -125,16 +124,16 @@ export default function EpisodeDetailPage() {
                 {episode.title}
               </h2>
               <div className="flex items-center gap-4 text-sm text-muted-foreground">
-                {episode.publish_date && (
+                {episode.pub_date && (
                   <span className="flex items-center gap-1">
                     <Calendar className="h-3.5 w-3.5" />
-                    {formatDate(episode.publish_date)}
+                    {formatDate(episode.pub_date)}
                   </span>
                 )}
-                {episode.duration_seconds && (
+                {episode.duration && (
                   <span className="flex items-center gap-1">
                     <Clock className="h-3.5 w-3.5" />
-                    {formatDuration(episode.duration_seconds)}
+                    {formatDuration(episode.duration)}
                   </span>
                 )}
               </div>
@@ -142,11 +141,6 @@ export default function EpisodeDetailPage() {
                 {episode.series && (
                   <Badge variant="default">{episode.series}</Badge>
                 )}
-                {episode.tags?.map((tag) => (
-                  <Badge key={tag} variant="secondary">
-                    {tag}
-                  </Badge>
-                ))}
               </div>
               {episode.description && (
                 <p className="text-sm text-muted-foreground leading-relaxed max-w-3xl">

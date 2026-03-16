@@ -46,7 +46,6 @@ export async function PATCH(
     const updates = (await request.json()) as {
       title?: string;
       series?: string | null;
-      tags?: string[];
       description?: string | null;
     };
 

@@ -3,13 +3,15 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 
 interface DataSource {
-  id: string;
   platform: string;
-  api_key_configured: boolean;
+  display_name: string | null;
+  is_active: boolean;
+  config: Record<string, unknown> | null;
   last_sync_at: string | null;
   last_sync_status: string | null;
   last_sync_error: string | null;
-  records_synced: number;
+  created_at: string;
+  updated_at: string;
 }
 
 export function useSyncStatus() {

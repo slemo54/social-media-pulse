@@ -26,9 +26,10 @@ export async function GET() {
 export async function PUT(request: Request) {
   try {
     const supabase = createClient();
-    const { platform, api_key_configured } = (await request.json()) as {
+    const { platform, is_active, display_name } = (await request.json()) as {
       platform?: string;
-      api_key_configured?: boolean;
+      is_active?: boolean;
+      display_name?: string;
     };
 
     if (!platform) {
@@ -38,12 +39,15 @@ export async function PUT(request: Request) {
       );
     }
 
+    const updatePayload: Record<string, unknown> = {
+      updated_at: new Date().toISOString(),
+    };
+    if (is_active !== undefined) updatePayload.is_active = is_active;
+    if (display_name !== undefined) updatePayload.display_name = display_name;
+
     const { data, error } = await supabase
       .from("data_sources")
-      .update({
-        api_key_configured: api_key_configured ?? false,
-        updated_at: new Date().toISOString(),
-      } as never)
+      .update(updatePayload as never)
       .eq("platform", platform)
       .select()
       .single();

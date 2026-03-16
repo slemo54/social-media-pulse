@@ -39,14 +39,14 @@ export default function DashboardPage() {
     for (const row of analytics.aggregates as Array<{
       date: string;
       platform: string;
-      downloads: number | null;
-      views: number | null;
+      total_downloads: number | null;
+      total_views: number | null;
       sessions: number | null;
-      listeners: number | null;
+      unique_listeners: number | null;
     }>) {
       const existing = byDate.get(row.date) || { date: row.date };
       const value =
-        row.downloads || row.views || row.sessions || row.listeners || 0;
+        row.total_downloads || row.total_views || row.sessions || row.unique_listeners || 0;
       existing[row.platform] = value;
       byDate.set(row.date, existing);
     }
@@ -76,10 +76,10 @@ export default function DashboardPage() {
         <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-4">
           <KPICard
             title="Total Downloads"
-            value={formatNumber(totals.downloads || 0)}
+            value={formatNumber(totals.total_downloads || 0)}
             change={calculateChange(
-              totals.downloads || 0,
-              prevTotals.downloads || 0
+              totals.total_downloads || 0,
+              prevTotals.total_downloads || 0
             )}
             icon={Download}
             color={PLATFORM_COLORS.megaphone}
@@ -87,10 +87,10 @@ export default function DashboardPage() {
           />
           <KPICard
             title="Total Views"
-            value={formatNumber(totals.views || 0)}
+            value={formatNumber(totals.total_views || 0)}
             change={calculateChange(
-              totals.views || 0,
-              prevTotals.views || 0
+              totals.total_views || 0,
+              prevTotals.total_views || 0
             )}
             icon={Eye}
             color={PLATFORM_COLORS.youtube}
@@ -109,10 +109,10 @@ export default function DashboardPage() {
           />
           <KPICard
             title="Total Listens"
-            value={formatNumber(totals.listeners || 0)}
+            value={formatNumber(totals.unique_listeners || 0)}
             change={calculateChange(
-              totals.listeners || 0,
-              prevTotals.listeners || 0
+              totals.unique_listeners || 0,
+              prevTotals.unique_listeners || 0
             )}
             icon={Headphones}
             color={PLATFORM_COLORS.soundcloud}
@@ -159,7 +159,7 @@ export default function DashboardPage() {
                     </div>
                   ))
                 : (dataSources || []).map((ds) => (
-                    <div key={ds.id} className="flex items-center gap-3">
+                    <div key={ds.platform} className="flex items-center gap-3">
                       <span
                         className="h-2 w-2 rounded-full"
                         style={{

@@ -26,7 +26,7 @@ export async function GET(request: NextRequest) {
     }
 
     query = query
-      .order("publish_date", { ascending: false })
+      .order("pub_date", { ascending: false })
       .range(offset, offset + pageSize - 1);
 
     const { data: episodes, error, count } = await query;
@@ -113,10 +113,9 @@ export async function POST(request: Request) {
         title: ep.title,
         description: ep.description || null,
         audio_url: ep.audioUrl || null,
-        duration_seconds: ep.durationSeconds || null,
-        publish_date: ep.publishDate || null,
+        duration: ep.durationSeconds || null,
+        pub_date: ep.publishDate || null,
         series: ep.series,
-        tags: ep.tags.length > 0 ? ep.tags : null,
       }));
 
       const { error } = await supabaseAdmin

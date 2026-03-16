@@ -76,7 +76,6 @@ export async function POST(request: Request) {
     const results: SyncResult[] = [];
 
     for (const p of platformsToSync) {
-      const startedAt = new Date().toISOString();
       let recordCount = 0;
 
       try {
@@ -105,19 +104,20 @@ export async function POST(request: Request) {
           const rows = chunk.map((agg) => ({
             platform: agg.platform,
             date: agg.date,
-            downloads: agg.downloads ?? null,
-            views: agg.views ?? null,
+            total_downloads: agg.downloads ?? null,
+            total_views: agg.views ?? null,
+            unique_listeners: agg.listeners ?? null,
+            total_watch_time: agg.watch_time_minutes ?? null,
+            pageviews: agg.page_views ?? null,
             sessions: agg.sessions ?? null,
-            listeners: agg.listeners ?? null,
-            watch_time_minutes: agg.watch_time_minutes ?? null,
-            likes: agg.likes ?? null,
-            comments: agg.comments ?? null,
-            shares: agg.shares ?? null,
-            subscribers_gained: agg.subscribers_gained ?? null,
-            page_views: agg.page_views ?? null,
-            avg_session_duration: agg.avg_session_duration ?? null,
             bounce_rate: agg.bounce_rate ?? null,
-            updated_at: new Date().toISOString(),
+            raw_data: JSON.stringify({
+              likes: agg.likes ?? null,
+              comments: agg.comments ?? null,
+              shares: agg.shares ?? null,
+              subscribers_gained: agg.subscribers_gained ?? null,
+              avg_session_duration: agg.avg_session_duration ?? null,
+            }),
           }));
 
           const { error: upsertError } = await supabaseAdmin
@@ -140,26 +140,57 @@ export async function POST(request: Request) {
 
           for (let i = 0; i < metrics.length; i += 50) {
             const chunk = metrics.slice(i, i + 50);
-            const rows = chunk.map((m) => ({
-              episode_id: m.external_id,
-              platform: m.platform,
-              external_id: m.external_id,
-              date: m.date,
-              downloads: m.downloads ?? null,
-              views: m.views ?? null,
-              likes: m.likes ?? null,
-              comments: m.comments ?? null,
-              watch_time_minutes: m.watch_time_minutes ?? null,
-            }));
+            for (const m of chunk) {
+              try {
+                // episode_id is a UUID FK — look up the episode by external_id
+                const { data: ep } = await supabaseAdmin
+                  .from("episodes")
+                  .select("id")
+                  .eq("external_id", m.external_id)
+                  .maybeSingle();
 
-            const { error: metricError } = await supabaseAdmin
-              .from("episode_metrics")
-              .upsert(rows as never[], { onConflict: "episode_id,platform,date" });
+                if (!ep) {
+                  console.warn(
+                    `No episode found for external_id=${m.external_id} on ${m.platform}, skipping metric`
+                  );
+                  continue;
+                }
 
-            if (metricError) throw metricError;
+                const episodeId = (ep as unknown as { id: string }).id;
+
+                const { error: metricError } = await supabaseAdmin
+                  .from("episode_metrics")
+                  .upsert(
+                    {
+                      episode_id: episodeId,
+                      platform: m.platform,
+                      external_id: m.external_id,
+                      date: m.date,
+                      downloads: m.downloads ?? null,
+                      views: m.views ?? null,
+                      likes: m.likes ?? null,
+                      comments: m.comments ?? null,
+                      watch_time_minutes: m.watch_time_minutes ?? null,
+                    } as never,
+                    { onConflict: "episode_id,platform,date" }
+                  );
+
+                if (metricError) {
+                  console.warn(
+                    `Episode metric upsert failed for ${m.external_id}:`,
+                    metricError.message
+                  );
+                } else {
+                  recordCount += 1;
+                }
+              } catch (metricErr) {
+                console.warn(
+                  `Episode metric error for ${m.external_id}:`,
+                  metricErr
+                );
+              }
+            }
           }
-
-          recordCount += metrics.length;
         }
 
         // Log success
@@ -167,8 +198,7 @@ export async function POST(request: Request) {
           platform: p,
           sync_type: fullSync ? "full" : "incremental",
           status: "success",
-          records_count: recordCount,
-          started_at: startedAt,
+          records_synced: recordCount,
           completed_at: new Date().toISOString(),
         } as never);
 
@@ -179,7 +209,6 @@ export async function POST(request: Request) {
             last_sync_at: new Date().toISOString(),
             last_sync_status: "success",
             last_sync_error: null,
-            records_synced: recordCount,
             updated_at: new Date().toISOString(),
           } as never)
           .eq("platform", p);
@@ -194,9 +223,8 @@ export async function POST(request: Request) {
           platform: p,
           sync_type: fullSync ? "full" : "incremental",
           status: "error",
-          records_count: recordCount,
+          records_synced: recordCount,
           error_message: errorMessage,
-          started_at: startedAt,
           completed_at: new Date().toISOString(),
         } as never);
 
@@ -233,10 +261,9 @@ export async function POST(request: Request) {
             title: ep.title,
             description: ep.description || null,
             audio_url: ep.audioUrl || null,
-            duration_seconds: ep.durationSeconds || null,
-            publish_date: ep.publishDate || null,
+            duration: ep.durationSeconds || null,
+            pub_date: ep.publishDate || null,
             series: ep.series,
-            tags: ep.tags.length > 0 ? ep.tags : null,
           }));
 
           const { error: rssError } = await supabaseAdmin
