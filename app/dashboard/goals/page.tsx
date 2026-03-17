@@ -29,14 +29,14 @@ import { useToast } from "@/hooks/useToast";
 import { formatNumber, cn } from "@/lib/utils";
 
 const METRIC_OPTIONS = [
-  { value: "monthly_downloads", label: "Monthly Downloads" },
-  { value: "monthly_views", label: "Monthly Views" },
-  { value: "monthly_listeners", label: "Monthly Listeners" },
-  { value: "monthly_sessions", label: "Monthly Sessions" },
-  { value: "quarterly_downloads", label: "Quarterly Downloads" },
-  { value: "quarterly_views", label: "Quarterly Views" },
-  { value: "quarterly_listeners", label: "Quarterly Listeners" },
-  { value: "quarterly_sessions", label: "Quarterly Sessions" },
+  { value: "monthly_downloads", label: "Download Mensili" },
+  { value: "monthly_views", label: "Visualizzazioni Mensili" },
+  { value: "monthly_listeners", label: "Ascoltatori Mensili" },
+  { value: "monthly_sessions", label: "Sessioni Mensili" },
+  { value: "quarterly_downloads", label: "Download Trimestrali" },
+  { value: "quarterly_views", label: "Visualizzazioni Trimestrali" },
+  { value: "quarterly_listeners", label: "Ascoltatori Trimestrali" },
+  { value: "quarterly_sessions", label: "Sessioni Trimestrali" },
 ];
 
 interface GoalFormState {
@@ -167,8 +167,8 @@ export default function GoalsPage() {
   return (
     <div className="flex flex-col">
       <Header
-        title="Goals"
-        description="Track your performance targets"
+        title="Obiettivi"
+        description="Monitora i tuoi obiettivi di performance"
         userEmail={user?.email || undefined}
         onLogout={signOut}
       />
@@ -177,11 +177,11 @@ export default function GoalsPage() {
         {/* Header row */}
         <div className="flex items-center justify-between">
           <p className="text-sm text-muted-foreground">
-            {goals.length} active goal{goals.length !== 1 ? "s" : ""}
+            {goals.length} obiettivo{goals.length !== 1 ? "i" : ""} attivo{goals.length !== 1 ? "/" : ""}
           </p>
           <Button size="sm" onClick={openCreate}>
             <Plus className="mr-2 h-3.5 w-3.5" />
-            New Goal
+            Nuovo Obiettivo
           </Button>
         </div>
 
@@ -200,13 +200,13 @@ export default function GoalsPage() {
           <Card>
             <CardContent className="flex flex-col items-center justify-center py-16 text-center">
               <Target className="h-10 w-10 text-muted-foreground mb-3" />
-              <p className="text-sm font-medium mb-1">No goals yet</p>
+              <p className="text-sm font-medium mb-1">Nessun obiettivo ancora</p>
               <p className="text-sm text-muted-foreground mb-4">
-                Set performance targets to track your podcast growth
+                Imposta obiettivi di performance per monitorare la crescita del tuo podcast
               </p>
               <Button size="sm" onClick={openCreate}>
                 <Plus className="mr-2 h-3.5 w-3.5" />
-                Create your first goal
+                Crea il tuo primo obiettivo
               </Button>
             </CardContent>
           </Card>
@@ -244,7 +244,7 @@ export default function GoalsPage() {
                         {formatNumber(goal.currentValue)}
                       </p>
                       <p className="text-xs text-muted-foreground">
-                        of {formatNumber(goal.target_value)} target
+                        di {formatNumber(goal.target_value)} target
                       </p>
                       <p
                         className={cn(
@@ -253,8 +253,8 @@ export default function GoalsPage() {
                         )}
                       >
                         {goal.percentage >= 100
-                          ? "Goal achieved!"
-                          : `${formatNumber(goal.target_value - goal.currentValue)} remaining`}
+                          ? "Obiettivo raggiunto!"
+                          : `${formatNumber(goal.target_value - goal.currentValue)} rimanenti`}
                       </p>
                     </div>
                   </CardContent>
@@ -269,11 +269,11 @@ export default function GoalsPage() {
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>{editingGoal ? "Edit Goal" : "New Goal"}</DialogTitle>
+            <DialogTitle>{editingGoal ? "Modifica Obiettivo" : "Nuovo Obiettivo"}</DialogTitle>
           </DialogHeader>
           <div className="space-y-4 py-2">
             <div className="space-y-1.5">
-              <Label>Metric</Label>
+              <Label>Metrica</Label>
               <Select
                 value={form.metric_name}
                 onValueChange={(v) => {
@@ -294,33 +294,33 @@ export default function GoalsPage() {
               </Select>
             </div>
             <div className="space-y-1.5">
-              <Label htmlFor="target">Target Value</Label>
+              <Label htmlFor="target">Valore Target</Label>
               <Input
                 id="target"
                 type="number"
                 min={1}
-                placeholder="e.g. 10000"
+                placeholder="es. 10000"
                 value={form.target_value}
                 onChange={(e) => setForm({ ...form, target_value: e.target.value })}
               />
             </div>
             <div className="space-y-1.5">
-              <Label>Period</Label>
+              <Label>Periodo</Label>
               <Select value={form.period} onValueChange={(v) => setForm({ ...form, period: v })}>
                 <SelectTrigger>
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="monthly">Monthly</SelectItem>
-                  <SelectItem value="quarterly">Quarterly</SelectItem>
+                  <SelectItem value="monthly">Mensile</SelectItem>
+                  <SelectItem value="quarterly">Trimestrale</SelectItem>
                 </SelectContent>
               </Select>
             </div>
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setDialogOpen(false)}>Cancel</Button>
+            <Button variant="outline" onClick={() => setDialogOpen(false)}>Annulla</Button>
             <Button onClick={handleSave} disabled={isCreating || isUpdating}>
-              {isCreating || isUpdating ? "Saving..." : editingGoal ? "Update" : "Create"}
+              {isCreating || isUpdating ? "Salvataggio..." : editingGoal ? "Aggiorna" : "Crea"}
             </Button>
           </DialogFooter>
         </DialogContent>

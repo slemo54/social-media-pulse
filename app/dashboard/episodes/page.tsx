@@ -105,8 +105,8 @@ export default function EpisodesPage() {
   return (
     <div className="flex flex-col">
       <Header
-        title="Episodes"
-        description="Manage and browse podcast episodes"
+        title="Episodi"
+        description="Gestisci e sfoglia gli episodi del podcast"
         userEmail={user?.email || undefined}
         onLogout={signOut}
       />
@@ -117,7 +117,7 @@ export default function EpisodesPage() {
           <div className="relative flex-1 min-w-[200px] max-w-sm">
             <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
             <Input
-              placeholder="Search episodes..."
+              placeholder="Cerca episodi..."
               value={search}
               onChange={(e) => {
                 setSearch(e.target.value);
@@ -134,10 +134,10 @@ export default function EpisodesPage() {
             }}
           >
             <SelectTrigger className="w-[200px] h-9">
-              <SelectValue placeholder="All Series" />
+              <SelectValue placeholder="Tutte le Serie" />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="all">All Series</SelectItem>
+              <SelectItem value="all">Tutte le Serie</SelectItem>
               {uniqueSeries.map((s) => (
                 <SelectItem key={s} value={s}>
                   {s}
@@ -151,7 +151,7 @@ export default function EpisodesPage() {
             onClick={() => setImportOpen(true)}
           >
             <Rss className="mr-2 h-3.5 w-3.5" />
-            Import from RSS
+            Importa da RSS
           </Button>
         </div>
 
@@ -178,7 +178,7 @@ export default function EpisodesPage() {
                 onClick={() => setPage(page - 1)}
                 disabled={page <= 1}
               >
-                Previous
+                Precedente
               </Button>
               <Button
                 variant="outline"
@@ -186,7 +186,7 @@ export default function EpisodesPage() {
                 onClick={() => setPage(page + 1)}
                 disabled={page >= totalPages}
               >
-                Next
+                Successivo
               </Button>
             </div>
           </div>
@@ -196,11 +196,11 @@ export default function EpisodesPage() {
         <Dialog open={importOpen} onOpenChange={setImportOpen}>
           <DialogContent>
             <DialogHeader>
-              <DialogTitle>Import from RSS Feed</DialogTitle>
+              <DialogTitle>Importa da Feed RSS</DialogTitle>
             </DialogHeader>
             <div className="space-y-4 py-4">
               <div className="space-y-2">
-                <Label htmlFor="feedUrl">RSS Feed URL</Label>
+                <Label htmlFor="feedUrl">URL Feed RSS</Label>
                 <Input
                   id="feedUrl"
                   placeholder="https://feeds.example.com/podcast.xml"
@@ -214,13 +214,13 @@ export default function EpisodesPage() {
                 variant="outline"
                 onClick={() => setImportOpen(false)}
               >
-                Cancel
+                Annulla
               </Button>
               <Button
                 onClick={handleImport}
                 disabled={!feedUrl || isImporting}
               >
-                {isImporting ? "Importing..." : "Import"}
+                {isImporting ? "Importazione in corso..." : "Importa"}
               </Button>
             </DialogFooter>
           </DialogContent>

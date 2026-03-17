@@ -3,6 +3,7 @@
 import { type LucideIcon, TrendingUp, TrendingDown } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
+import { MetricTooltip } from "@/components/dashboard/MetricTooltip";
 import { cn } from "@/lib/utils";
 
 interface KPICardProps {
@@ -12,6 +13,7 @@ interface KPICardProps {
   icon: LucideIcon;
   loading?: boolean;
   color?: string;
+  tooltip?: string;
 }
 
 export function KPICard({
@@ -21,6 +23,7 @@ export function KPICard({
   icon: Icon,
   loading = false,
   color,
+  tooltip,
 }: KPICardProps) {
   if (loading) {
     return (
@@ -42,8 +45,9 @@ export function KPICard({
   return (
     <Card>
       <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-        <CardTitle className="text-sm font-medium text-muted-foreground">
+        <CardTitle className="text-sm font-medium text-muted-foreground flex items-center gap-1">
           {title}
+          {tooltip && <MetricTooltip content={tooltip} />}
         </CardTitle>
         <Icon
           className="h-4 w-4 text-muted-foreground"

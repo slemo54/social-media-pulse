@@ -55,10 +55,10 @@ function today() {
 }
 
 const METRIC_OPTIONS = [
-  { value: "downloads", label: "Downloads" },
-  { value: "views", label: "Views" },
-  { value: "sessions", label: "Sessions" },
-  { value: "reach", label: "Total Reach" },
+  { value: "downloads", label: "Download" },
+  { value: "views", label: "Visualizzazioni" },
+  { value: "sessions", label: "Sessioni" },
+  { value: "reach", label: "Portata Totale" },
 ] as const;
 
 const HEATMAP_METRICS = ["downloads", "views", "sessions"] as const;
@@ -183,7 +183,7 @@ export default function ExecutivePage() {
 
   const kpiCards = [
     {
-      title: "Total Reach",
+      title: "Portata Totale",
       value: totals?.reach || 0,
       prev: prevTotals?.reach || 0,
       sparkData: sparkReach,
@@ -191,7 +191,7 @@ export default function ExecutivePage() {
       color: "#20808D",
     },
     {
-      title: "Downloads",
+      title: "Download",
       value: totals?.downloads || 0,
       prev: prevTotals?.downloads || 0,
       sparkData: sparkDownloads,
@@ -199,7 +199,7 @@ export default function ExecutivePage() {
       color: PLATFORM_COLORS.megaphone,
     },
     {
-      title: "Views",
+      title: "Visualizzazioni",
       value: totals?.views || 0,
       prev: prevTotals?.views || 0,
       sparkData: sparkViews,
@@ -207,7 +207,7 @@ export default function ExecutivePage() {
       color: PLATFORM_COLORS.youtube,
     },
     {
-      title: "Sessions",
+      title: "Sessioni",
       value: totals?.sessions || 0,
       prev: prevTotals?.sessions || 0,
       sparkData: sparkSessions,
@@ -215,7 +215,7 @@ export default function ExecutivePage() {
       color: PLATFORM_COLORS.ga4,
     },
     {
-      title: "Listeners",
+      title: "Ascoltatori",
       value: totals?.listeners || 0,
       prev: prevTotals?.listeners || 0,
       sparkData: sparkListeners,
@@ -227,8 +227,8 @@ export default function ExecutivePage() {
   return (
     <div className="flex flex-col">
       <Header
-        title="Executive Report"
-        description="Aggregated performance across all platforms"
+        title="Report Esecutivo"
+        description="Performance aggregata su tutte le piattaforme"
         userEmail={user?.email || undefined}
         onLogout={signOut}
       />
@@ -287,7 +287,7 @@ export default function ExecutivePage() {
                         <span className={cn("font-medium", isPositive ? "text-emerald-500" : "text-red-500")}>
                           {isPositive ? "+" : ""}{change.toFixed(1)}%
                         </span>
-                        <span>vs prev</span>
+                        <span>vs periodo prec.</span>
                       </p>
                       <Sparkline data={card.sparkData} color={card.color} />
                     </CardContent>
@@ -299,7 +299,7 @@ export default function ExecutivePage() {
         {/* 1b. Trend with Moving Average */}
         <Card>
           <CardHeader className="flex flex-row items-center justify-between pb-3">
-            <CardTitle className="text-base">Trend + 7-Day Moving Average</CardTitle>
+            <CardTitle className="text-base">Trend + Media Mobile 7 Giorni</CardTitle>
             <Select value={metric} onValueChange={setMetric}>
               <SelectTrigger className="w-[160px] h-8 text-xs">
                 <SelectValue />
@@ -355,7 +355,7 @@ export default function ExecutivePage() {
                     strokeWidth={1}
                     opacity={0.4}
                     dot={false}
-                    name="Daily"
+                    name="Giornaliero"
                   />
                   <Line
                     type="monotone"
@@ -363,7 +363,7 @@ export default function ExecutivePage() {
                     stroke="#20808D"
                     strokeWidth={2.5}
                     dot={false}
-                    name="7-day MA"
+                    name="Media 7gg"
                   />
                   {annotations.map((ann) => (
                     <ReferenceLine
@@ -385,7 +385,7 @@ export default function ExecutivePage() {
               </ResponsiveContainer>
             )}
             <p className="text-xs text-muted-foreground mt-2">
-              Click on a date to add an annotation
+              Clicca su una data per aggiungere un'annotazione
             </p>
           </CardContent>
         </Card>
@@ -394,7 +394,7 @@ export default function ExecutivePage() {
           {/* 1c. Top 5 Episodes */}
           <Card>
             <CardHeader>
-              <CardTitle className="text-base">Top 5 Episodes</CardTitle>
+              <CardTitle className="text-base">Episodi Top 5</CardTitle>
             </CardHeader>
             <CardContent>
               {isLoading ? (
@@ -404,7 +404,7 @@ export default function ExecutivePage() {
                   ))}
                 </div>
               ) : (data?.topEpisodes || []).length === 0 ? (
-                <p className="text-sm text-muted-foreground text-center py-8">No episode data for this period</p>
+                <p className="text-sm text-muted-foreground text-center py-8">Nessun dato episodio per questo periodo</p>
               ) : (
                 <div className="space-y-2">
                   {(data?.topEpisodes || []).map((ep, i) => (
@@ -429,7 +429,7 @@ export default function ExecutivePage() {
                       </div>
                       <div className="text-right text-xs shrink-0">
                         <p className="font-semibold">{formatNumber(ep.reach)}</p>
-                        <p className="text-muted-foreground">reach</p>
+                        <p className="text-muted-foreground">portata</p>
                       </div>
                     </div>
                   ))}
@@ -441,13 +441,13 @@ export default function ExecutivePage() {
           {/* 1d. Performance per Series */}
           <Card>
             <CardHeader>
-              <CardTitle className="text-base">Performance by Series</CardTitle>
+              <CardTitle className="text-base">Performance per Serie</CardTitle>
             </CardHeader>
             <CardContent>
               {isLoading ? (
                 <Skeleton className="h-64 w-full" />
               ) : (data?.seriesPerformance || []).length === 0 ? (
-                <p className="text-sm text-muted-foreground text-center py-8">No series data</p>
+                <p className="text-sm text-muted-foreground text-center py-8">Nessun dato serie</p>
               ) : (
                 <ResponsiveContainer width="100%" height={260}>
                   <BarChart
@@ -499,14 +499,14 @@ export default function ExecutivePage() {
         {!isLoading && (data?.seriesPerformance || []).length > 0 && (
           <Card>
             <CardHeader>
-              <CardTitle className="text-base">Series Trend vs Previous Period</CardTitle>
+              <CardTitle className="text-base">Trend Serie vs Periodo Precedente</CardTitle>
             </CardHeader>
             <CardContent>
               <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
                 {(data?.seriesPerformance || []).slice(0, 8).map((s) => (
                   <div key={s.series} className="p-3 rounded-md border bg-card/50">
                     <p className="text-sm font-medium truncate">{s.series}</p>
-                    <p className="text-xs text-muted-foreground">{s.episodeCount} episodes</p>
+                    <p className="text-xs text-muted-foreground">{s.episodeCount} episodi</p>
                     <div className="mt-1.5 flex items-center gap-2">
                       <span className="text-sm font-semibold">{formatNumber(s.avgDownloads)}</span>
                       {trendBadge(s.trend)}
@@ -521,7 +521,7 @@ export default function ExecutivePage() {
         {/* 1e. Heatmap Day of Week */}
         <Card>
           <CardHeader>
-            <CardTitle className="text-base">Avg Performance by Day of Week</CardTitle>
+            <CardTitle className="text-base">Media Performance per Giorno della Settimana</CardTitle>
           </CardHeader>
           <CardContent>
             {isLoading ? (
@@ -542,9 +542,10 @@ export default function ExecutivePage() {
                   <tbody className="space-y-1">
                     {HEATMAP_METRICS.map((m) => {
                       const maxVal = m === "downloads" ? heatmapMaxDownloads : m === "views" ? heatmapMaxViews : heatmapMaxSessions;
+                      const labels: Record<string, string> = { downloads: "Download", views: "Visualizzazioni", sessions: "Sessioni" };
                       return (
                         <tr key={m}>
-                          <td className="text-xs text-muted-foreground capitalize pr-4 py-1">{m}</td>
+                          <td className="text-xs text-muted-foreground capitalize pr-4 py-1">{labels[m]}</td>
                           {(data?.heatmap || []).map((d) => (
                             <td key={d.day} className="px-1 py-1">
                               <div

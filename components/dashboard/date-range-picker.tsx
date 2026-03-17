@@ -11,10 +11,10 @@ interface DateRangePickerProps {
 }
 
 const PRESETS = [
-  { label: "7d", days: 7 },
-  { label: "30d", days: 30 },
-  { label: "90d", days: 90 },
-  { label: "1y", days: 365 },
+  { label: "7g", days: 7 },
+  { label: "30g", days: 30 },
+  { label: "90g", days: 90 },
+  { label: "1a", days: 365 },
 ] as const;
 
 function daysAgo(days: number): string {
@@ -51,7 +51,7 @@ export function DateRangePicker({
           }
           className="h-8 w-[140px] text-xs"
         />
-        <span className="text-xs text-muted-foreground">to</span>
+        <span className="text-xs text-muted-foreground">al</span>
         <Input
           type="date"
           value={endDate}
@@ -83,7 +83,7 @@ export function DateRangePicker({
           className="h-7 px-2.5 text-xs"
           onClick={handleAll}
         >
-          All
+          Tutto
         </Button>
       </div>
     </div>

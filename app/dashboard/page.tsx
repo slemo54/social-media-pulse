@@ -60,7 +60,7 @@ export default function DashboardPage() {
     <div className="flex flex-col">
       <Header
         title="Dashboard"
-        description="Overview of all platforms"
+        description="Panoramica di tutte le piattaforme"
         userEmail={user?.email || undefined}
         onLogout={signOut}
       />
@@ -75,7 +75,7 @@ export default function DashboardPage() {
         {/* KPI Cards */}
         <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-4">
           <KPICard
-            title="Total Downloads"
+            title="Download Totali"
             value={formatNumber(totals.total_downloads || 0)}
             change={calculateChange(
               totals.total_downloads || 0,
@@ -84,9 +84,10 @@ export default function DashboardPage() {
             icon={Download}
             color={PLATFORM_COLORS.megaphone}
             loading={analyticsLoading}
+            tooltip="Somma download da Megaphone e altre piattaforme podcast. Un download = ha avviato la riproduzione."
           />
           <KPICard
-            title="Total Views"
+            title="Visualizzazioni Totali"
             value={formatNumber(totals.total_views || 0)}
             change={calculateChange(
               totals.total_views || 0,
@@ -95,9 +96,10 @@ export default function DashboardPage() {
             icon={Eye}
             color={PLATFORM_COLORS.youtube}
             loading={analyticsLoading}
+            tooltip="Numero di visualizzazioni da YouTube e piattaforme video. Indica quante volte il contenuto è stato avviato."
           />
           <KPICard
-            title="Total Sessions"
+            title="Sessioni Totali"
             value={formatNumber(totals.sessions || 0)}
             change={calculateChange(
               totals.sessions || 0,
@@ -106,9 +108,10 @@ export default function DashboardPage() {
             icon={Users}
             color={PLATFORM_COLORS.ga4}
             loading={analyticsLoading}
+            tooltip="Numero di sessioni utenti da Google Analytics. Una sessione = visita da un dispositivo unico."
           />
           <KPICard
-            title="Total Listens"
+            title="Ascolti Totali"
             value={formatNumber(totals.unique_listeners || 0)}
             change={calculateChange(
               totals.unique_listeners || 0,
@@ -117,6 +120,7 @@ export default function DashboardPage() {
             icon={Headphones}
             color={PLATFORM_COLORS.soundcloud}
             loading={analyticsLoading}
+            tooltip="Dispositivi unici che hanno ascoltato il contenuto. Listener univoci dalle piattaforme podcast."
           />
         </div>
 
@@ -125,14 +129,14 @@ export default function DashboardPage() {
           data={chartData}
           platforms={[...PLATFORMS]}
           metric="all"
-          title="Platform Performance"
+          title="Performance per Piattaforma"
           loading={analyticsLoading}
         />
 
         {/* Top Episodes */}
         <Card>
           <CardHeader>
-            <CardTitle className="text-base">Top Episodes</CardTitle>
+            <CardTitle className="text-base">Episodi Top</CardTitle>
           </CardHeader>
           <CardContent>
             <EpisodeTable
@@ -145,7 +149,7 @@ export default function DashboardPage() {
         {/* Sync Status */}
         <Card>
           <CardHeader>
-            <CardTitle className="text-base">Sync Status</CardTitle>
+            <CardTitle className="text-base">Stato Sincronizzazione</CardTitle>
           </CardHeader>
           <CardContent>
             <div className="grid gap-3 grid-cols-1 sm:grid-cols-2 lg:grid-cols-4">

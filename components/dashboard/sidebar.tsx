@@ -39,27 +39,27 @@ export function Sidebar() {
   const mainNav: NavItem[] = [
     {
       href: "/dashboard",
-      label: "Dashboard",
+      label: "Panoramica",
       icon: <LayoutDashboard className="h-4 w-4" />,
     },
     {
       href: "/dashboard/executive",
-      label: "Executive Report",
+      label: "Report Esecutivo",
       icon: <BarChart3 className="h-4 w-4" />,
     },
     {
       href: "/dashboard/episodes",
-      label: "Episodes",
+      label: "Episodi",
       icon: <Mic className="h-4 w-4" />,
     },
     {
       href: "/dashboard/tags",
-      label: "Tags Analytics",
+      label: "Analisi Tag",
       icon: <Tag className="h-4 w-4" />,
     },
     {
       href: "/dashboard/goals",
-      label: "Goals",
+      label: "Obiettivi",
       icon: <Target className="h-4 w-4" />,
     },
   ];
@@ -113,7 +113,7 @@ export function Sidebar() {
                 platformsOpen && "rotate-90"
               )}
             />
-            Platforms
+            Piattaforme
           </span>
           <ChevronDown
             className={cn(
@@ -165,7 +165,7 @@ export function Sidebar() {
           )}
         >
           <Settings className="h-4 w-4" />
-          Settings
+          Impostazioni
         </Link>
       </nav>
 
@@ -182,7 +182,7 @@ export function Sidebar() {
           ) : (
             <Moon className="h-4 w-4" />
           )}
-          {theme === "dark" ? "Light Mode" : "Dark Mode"}
+          {theme === "dark" ? "Modalità Chiara" : "Modalità Scura"}
         </Button>
       </div>
     </div>

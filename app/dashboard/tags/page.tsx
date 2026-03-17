@@ -54,8 +54,8 @@ export default function TagsPage() {
   return (
     <div className="flex flex-col">
       <Header
-        title="Tag Analytics"
-        description="Performance breakdown by episode tags"
+        title="Analisi Tag"
+        description="Analisi delle prestazioni per tag episodio"
         userEmail={user?.email || undefined}
         onLogout={signOut}
       />
@@ -70,10 +70,10 @@ export default function TagsPage() {
           />
           <Select value={categoryFilter} onValueChange={setCategoryFilter}>
             <SelectTrigger className="w-[180px] h-8 text-xs">
-              <SelectValue placeholder="All categories" />
+              <SelectValue placeholder="Tutte le categorie" />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="all">All Categories</SelectItem>
+              <SelectItem value="all">Tutte le Categorie</SelectItem>
               {categories.map((cat) => (
                 <SelectItem key={cat} value={cat} className="capitalize">
                   {cat}
@@ -86,7 +86,7 @@ export default function TagsPage() {
         {/* Bar chart */}
         <Card>
           <CardHeader>
-            <CardTitle className="text-base">Top Tags by Avg Downloads</CardTitle>
+            <CardTitle className="text-base">Tag Top per Media Download</CardTitle>
           </CardHeader>
           <CardContent>
             {isLoading ? (
@@ -95,7 +95,7 @@ export default function TagsPage() {
               <div className="flex flex-col items-center justify-center py-16 text-center">
                 <Tag className="h-10 w-10 text-muted-foreground mb-3" />
                 <p className="text-sm text-muted-foreground">
-                  No tag data found. Add tags to your episodes to see analytics here.
+                  Nessun dato di tag trovato. Aggiungi tag agli episodi per vedere le analitiche qui.
                 </p>
               </div>
             ) : (
@@ -143,7 +143,7 @@ export default function TagsPage() {
         {!isLoading && filteredTags.length > 0 && (
           <Card>
             <CardHeader>
-              <CardTitle className="text-base">Tag Performance Table</CardTitle>
+              <CardTitle className="text-base">Tabella Performance Tag</CardTitle>
             </CardHeader>
             <CardContent>
               <div className="overflow-x-auto">
