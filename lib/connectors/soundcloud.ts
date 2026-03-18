@@ -7,9 +7,20 @@ import type {
 interface SoundCloudTrack {
   id: number;
   title: string;
-  playback_count: number;
+  playback_count: number | null;
+  likes_count: number | null;
+  comment_count: number | null;
+  reposts_count: number | null;
   created_at: string;
   permalink_url: string;
+  duration: number; // milliseconds
+}
+
+interface TokenResponse {
+  access_token: string;
+  expires_in: number;
+  refresh_token?: string;
+  token_type: string;
 }
 
 export class SoundCloudConnector implements PlatformConnector {
@@ -17,53 +28,94 @@ export class SoundCloudConnector implements PlatformConnector {
 
   private clientId: string;
   private clientSecret: string;
-  private accessToken: string;
+  private userId: string;
+  private accessTokenOverride: string;
 
   constructor(accessTokenOverride?: string) {
     this.clientId = process.env.SOUNDCLOUD_CLIENT_ID || "";
     this.clientSecret = process.env.SOUNDCLOUD_CLIENT_SECRET || "";
-    this.accessToken =
-      accessTokenOverride || process.env.SOUNDCLOUD_ACCESS_TOKEN || "";
+    this.userId = process.env.SOUNDCLOUD_USER_ID || "";
+    this.accessTokenOverride = accessTokenOverride || process.env.SOUNDCLOUD_ACCESS_TOKEN || "";
   }
 
-  private get headers(): Record<string, string> {
-    return {
-      Authorization: `OAuth ${this.accessToken}`,
-      Accept: "application/json",
-    };
+  /**
+   * Get an access token. Prefers an existing token, falls back to
+   * client_credentials OAuth flow.
+   */
+  private async getAccessToken(): Promise<string> {
+    if (this.accessTokenOverride && this.accessTokenOverride.length > 10) {
+      return this.accessTokenOverride;
+    }
+
+    if (!this.clientId || !this.clientSecret) {
+      throw new Error(
+        "SoundCloud not configured. Set SOUNDCLOUD_CLIENT_ID and SOUNDCLOUD_CLIENT_SECRET, or provide SOUNDCLOUD_ACCESS_TOKEN."
+      );
+    }
+
+    console.log("[SoundCloud] Obtaining token via client_credentials flow");
+
+    const response = await fetch("https://api.soundcloud.com/oauth2/token", {
+      method: "POST",
+      headers: { "Content-Type": "application/x-www-form-urlencoded" },
+      body: new URLSearchParams({
+        client_id: this.clientId,
+        client_secret: this.clientSecret,
+        grant_type: "client_credentials",
+      }),
+    });
+
+    if (!response.ok) {
+      const body = await response.text();
+      throw new Error(
+        `SoundCloud OAuth error: ${response.status} ${response.statusText} — ${body.slice(0, 200)}`
+      );
+    }
+
+    const data: TokenResponse = await response.json();
+    console.log("[SoundCloud] Token obtained successfully");
+    return data.access_token;
   }
 
-  private async fetchTracks(): Promise<SoundCloudTrack[]> {
+  /**
+   * Fetch all tracks for the configured user. Handles pagination.
+   */
+  private async fetchAllTracks(token: string): Promise<SoundCloudTrack[]> {
     const allTracks: SoundCloudTrack[] = [];
-    let url: string | null =
-      "https://api.soundcloud.com/me/tracks?limit=200";
+    let nextUrl: string | null = `https://api.soundcloud.com/users/${this.userId}/tracks?limit=200&linked_partitioning=1`;
 
-    while (url) {
-      const res: Response = await fetch(url, { headers: this.headers });
+    while (nextUrl) {
+      const res: Response = await fetch(nextUrl, {
+        headers: {
+          Authorization: `OAuth ${token}`,
+          Accept: "application/json",
+        },
+      });
 
       if (!res.ok) {
         if (res.status === 401) {
           throw new Error(
-            "SoundCloud authentication failed — check SOUNDCLOUD_ACCESS_TOKEN"
+            "SoundCloud authentication failed — token expired or invalid"
           );
         }
+        const body = await res.text();
         throw new Error(
-          `SoundCloud API error: ${res.status} ${res.statusText}`
+          `SoundCloud API error: ${res.status} ${res.statusText} — ${body.slice(0, 200)}`
         );
       }
 
-      const body = (await res.json()) as
-        | SoundCloudTrack[]
-        | { collection: SoundCloudTrack[]; next_href?: string };
+      const body = await res.json();
+
       if (Array.isArray(body)) {
         allTracks.push(...body);
-        url = null;
+        nextUrl = null;
       } else {
         allTracks.push(...(body.collection || []));
-        url = body.next_href || null;
+        nextUrl = body.next_href || null;
       }
     }
 
+    console.log(`[SoundCloud] Fetched ${allTracks.length} tracks total`);
     return allTracks;
   }
 
@@ -71,116 +123,99 @@ export class SoundCloudConnector implements PlatformConnector {
     startDate: string,
     endDate: string
   ): Promise<NormalizedDailyAggregate[]> {
-    if (!this.accessToken || this.accessToken === "xxxxxxxx" || this.accessToken.length < 10) {
+    if (!this.userId) {
       throw new Error(
-        "SoundCloud not configured. Complete OAuth at Settings → Connect SoundCloud, or set SOUNDCLOUD_ACCESS_TOKEN environment variable."
+        "SoundCloud not configured. Set SOUNDCLOUD_USER_ID environment variable."
       );
     }
 
-    try {
-      const tracks = await this.fetchTracks();
+    const token = await this.getAccessToken();
+    const tracks = await this.fetchAllTracks(token);
 
-      // SoundCloud's public API doesn't provide daily breakdowns natively.
-      // We aggregate total playback counts across all tracks, grouped
-      // by the track creation date if it falls within the requested range.
-      // For a more granular daily breakdown, the SoundCloud Pro analytics
-      // API would be needed.
-      const start = new Date(startDate);
-      const end = new Date(endDate);
+    const start = new Date(startDate);
+    const end = new Date(endDate);
 
-      // Aggregate total plays as a single snapshot for the date range
-      let totalListeners = 0;
-      for (const track of tracks) {
-        totalListeners += track.playback_count || 0;
-      }
+    // Group tracks by publication date
+    const dayMap = new Map<string, { plays: number; tracks: number }>();
 
-      // Create daily entries — distribute as a single aggregate for the
-      // end date since SoundCloud doesn't give per-day data via public API
-      const aggregates: NormalizedDailyAggregate[] = [];
+    for (const track of tracks) {
+      if (!track.created_at) continue;
+      // SoundCloud dates are like "2026/03/12 09:03:58 +0000"
+      const trackDate = new Date(track.created_at);
+      if (trackDate < start || trackDate > end) continue;
 
-      // Generate an entry per day in the range using available data
-      const current = new Date(start);
-      while (current <= end) {
-        const dateStr = current.toISOString().split("T")[0];
+      const dateStr = trackDate.toISOString().split("T")[0];
+      const existing = dayMap.get(dateStr) || { plays: 0, tracks: 0 };
+      existing.plays += track.playback_count || 0;
+      existing.tracks += 1;
+      dayMap.set(dateStr, existing);
+    }
 
-        // Count tracks that were published on this specific date
-        const tracksOnDate = tracks.filter((t) => {
-          const trackDate = new Date(t.created_at)
-            .toISOString()
-            .split("T")[0];
-          return trackDate === dateStr;
-        });
+    // Also produce a summary entry with total playback count if we have data
+    const totalPlays = tracks.reduce(
+      (sum, t) => sum + (t.playback_count || 0),
+      0
+    );
 
-        if (tracksOnDate.length > 0) {
-          const dayListeners = tracksOnDate.reduce(
-            (sum, t) => sum + (t.playback_count || 0),
-            0
-          );
+    const aggregates: NormalizedDailyAggregate[] = [];
 
-          aggregates.push({
-            platform: this.platform,
-            date: dateStr,
-            listeners: dayListeners,
-          });
-        }
-
-        current.setDate(current.getDate() + 1);
-      }
-
-      // If no per-day data was found, return a single summary entry
-      if (aggregates.length === 0 && totalListeners > 0) {
+    if (dayMap.size > 0) {
+      dayMap.forEach(({ plays }, date) => {
         aggregates.push({
           platform: this.platform,
-          date: endDate,
-          listeners: totalListeners,
+          date,
+          listeners: plays,
         });
-      }
-
-      return aggregates;
-    } catch (error) {
-      console.error("SoundCloud fetchDailyAggregates failed:", error);
-      throw error;
+      });
+    } else if (totalPlays > 0) {
+      // Fallback: single summary entry at end date
+      aggregates.push({
+        platform: this.platform,
+        date: endDate,
+        listeners: totalPlays,
+      });
     }
+
+    console.log(
+      `[SoundCloud] ${aggregates.length} daily aggregates, total plays across all tracks: ${totalPlays}`
+    );
+
+    return aggregates.sort((a, b) => a.date.localeCompare(b.date));
   }
 
   async fetchEpisodeMetrics(
     startDate: string,
     endDate: string
   ): Promise<NormalizedEpisodeMetric[]> {
-    if (!this.accessToken || this.accessToken === "xxxxxxxx" || this.accessToken.length < 10) {
+    if (!this.userId) {
       throw new Error(
-        "SoundCloud not configured. Complete OAuth at Settings → Connect SoundCloud, or set SOUNDCLOUD_ACCESS_TOKEN environment variable."
+        "SoundCloud not configured. Set SOUNDCLOUD_USER_ID environment variable."
       );
     }
 
-    try {
-      const tracks = await this.fetchTracks();
-      const start = new Date(startDate);
-      const end = new Date(endDate);
+    const token = await this.getAccessToken();
+    const tracks = await this.fetchAllTracks(token);
 
-      const metrics: NormalizedEpisodeMetric[] = [];
+    const start = new Date(startDate);
+    const end = new Date(endDate);
+    const metrics: NormalizedEpisodeMetric[] = [];
 
-      for (const track of tracks) {
-        const trackDate = new Date(track.created_at);
+    for (const track of tracks) {
+      if (!track.created_at) continue;
+      const trackDate = new Date(track.created_at);
+      if (trackDate < start || trackDate > end) continue;
 
-        // Only include tracks within the date range
-        if (trackDate >= start && trackDate <= end) {
-          metrics.push({
-            platform: this.platform,
-            external_id: String(track.id),
-            episode_title: track.title,
-            date: trackDate.toISOString().split("T")[0],
-            views: track.playback_count || 0,
-          });
-        }
-      }
-
-      return metrics.sort(
-        (a, b) => new Date(a.date).getTime() - new Date(b.date).getTime()
-      );
-    } catch (error) {
-      console.error("SoundCloud fetchEpisodeMetrics failed:", error);
-      throw error;
+      metrics.push({
+        platform: this.platform,
+        external_id: String(track.id),
+        episode_title: track.title,
+        date: trackDate.toISOString().split("T")[0],
+        views: track.playback_count || 0,
+      });
     }
+
+    return metrics.sort(
+      (a, b) => new Date(a.date).getTime() - new Date(b.date).getTime()
+    );
   }
 }

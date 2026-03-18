@@ -9,11 +9,10 @@ interface MegaphoneEpisode {
   uid: string;
   title: string;
   pubdate: string;
-}
-
-interface MegaphoneDownloadStat {
-  date: string;
-  downloads: number;
+  duration: number | null;
+  externalId: string | null;
+  downloadUrl: string | null;
+  status: string;
 }
 
 const MEGAPHONE_BASE_URL = "https://cms.megaphone.fm/api";
@@ -38,23 +37,23 @@ export class MegaphoneConnector implements PlatformConnector {
     };
   }
 
-  private async fetchEpisodes(): Promise<MegaphoneEpisode[]> {
-    try {
-      const url = `${MEGAPHONE_BASE_URL}/networks/${this.networkId}/podcasts/${this.podcastId}/episodes`;
-      const response = await fetch(url, { headers: this.headers });
+  private async fetchAllEpisodes(): Promise<MegaphoneEpisode[]> {
+    const url = `${MEGAPHONE_BASE_URL}/networks/${this.networkId}/podcasts/${this.podcastId}/episodes`;
+    console.log(`[Megaphone] Fetching episodes from: ${url}`);
 
-      if (!response.ok) {
-        throw new Error(
-          `Megaphone episodes API error: ${response.status} ${response.statusText}`
-        );
-      }
+    const response = await fetch(url, { headers: this.headers });
 
-      const data = await response.json();
-      return Array.isArray(data) ? data : data.episodes || [];
-    } catch (error) {
-      console.error("Failed to fetch Megaphone episodes:", error);
-      throw error;
+    if (!response.ok) {
+      const body = await response.text();
+      throw new Error(
+        `Megaphone episodes API error: ${response.status} ${response.statusText} — ${body.slice(0, 200)}`
+      );
     }
+
+    const data = await response.json();
+    const episodes: MegaphoneEpisode[] = Array.isArray(data) ? data : data.episodes || [];
+    console.log(`[Megaphone] Fetched ${episodes.length} episodes`);
+    return episodes;
   }
 
   async fetchDailyAggregates(
@@ -67,41 +66,39 @@ export class MegaphoneConnector implements PlatformConnector {
       );
     }
 
-    try {
-      // Try the newer analytics endpoint first
-      let url = `${MEGAPHONE_BASE_URL}/networks/${this.networkId}/podcasts/${this.podcastId}/analytics/downloads?startDate=${startDate}&endDate=${endDate}`;
-      let response = await fetch(url, { headers: this.headers });
+    // Megaphone's public API does not expose download stats endpoints.
+    // We aggregate episode publication dates to provide a "content output"
+    // timeline which is meaningful alongside data from other platforms.
+    const episodes = await this.fetchAllEpisodes();
 
-      // Fallback to older download_stats endpoint if the new one doesn't work
-      if (!response.ok && response.status === 404) {
-        console.warn(
-          `Megaphone analytics endpoint returned 404, trying download_stats fallback`
-        );
-        url = `${MEGAPHONE_BASE_URL}/networks/${this.networkId}/podcasts/${this.podcastId}/download_stats?startDate=${startDate}&endDate=${endDate}`;
-        response = await fetch(url, { headers: this.headers });
-      }
+    const start = new Date(startDate);
+    const end = new Date(endDate);
 
-      if (!response.ok) {
-        const errorBody = await response.text();
-        throw new Error(
-          `Megaphone Analytics API error: ${response.status} ${response.statusText} — ${errorBody}`
-        );
-      }
+    // Count episodes published per day in the range
+    const dayMap = new Map<string, number>();
 
-      const data = await response.json();
-      const rows: MegaphoneDownloadStat[] = Array.isArray(data)
-        ? data
-        : data.stats || [];
-
-      return rows.map((row) => ({
-        platform: this.platform,
-        date: row.date,
-        downloads: row.downloads || 0,
-      }));
-    } catch (error) {
-      console.error("Megaphone fetchDailyAggregates failed:", error);
-      throw error;
+    for (const ep of episodes) {
+      if (!ep.pubdate || ep.status === "draft") continue;
+      const pubDate = new Date(ep.pubdate);
+      if (pubDate < start || pubDate > end) continue;
+      const dateStr = pubDate.toISOString().split("T")[0];
+      dayMap.set(dateStr, (dayMap.get(dateStr) || 0) + 1);
     }
+
+    const aggregates: NormalizedDailyAggregate[] = [];
+    dayMap.forEach((count, date) => {
+      aggregates.push({
+        platform: this.platform,
+        date,
+        downloads: count, // episodes published on this day
+      });
+    });
+
+    console.log(
+      `[Megaphone] Generated ${aggregates.length} daily aggregates (episode publication counts)`
+    );
+
+    return aggregates.sort((a, b) => a.date.localeCompare(b.date));
   }
 
   async fetchEpisodeMetrics(
@@ -114,51 +111,26 @@ export class MegaphoneConnector implements PlatformConnector {
       );
     }
 
-    try {
-      const episodes = await this.fetchEpisodes();
-      const metrics: NormalizedEpisodeMetric[] = [];
+    const episodes = await this.fetchAllEpisodes();
+    const start = new Date(startDate);
+    const end = new Date(endDate);
+    const metrics: NormalizedEpisodeMetric[] = [];
 
-      for (const episode of episodes) {
-        try {
-          const url = `${MEGAPHONE_BASE_URL}/networks/${this.networkId}/podcasts/${this.podcastId}/episodes/${episode.id}/download_stats?startDate=${startDate}&endDate=${endDate}`;
-          const response = await fetch(url, { headers: this.headers });
+    for (const ep of episodes) {
+      if (!ep.pubdate || ep.status === "draft") continue;
+      const pubDate = new Date(ep.pubdate);
+      if (pubDate < start || pubDate > end) continue;
 
-          if (!response.ok) {
-            const errorBody = await response.text();
-            console.warn(
-              `Failed to fetch download stats for episode ${episode.id}: ${response.status} — ${errorBody}`
-            );
-            continue;
-          }
-
-          const data = await response.json();
-          const rows: MegaphoneDownloadStat[] = Array.isArray(data)
-            ? data
-            : data.stats || [];
-
-          for (const row of rows) {
-            metrics.push({
-              platform: this.platform,
-              external_id: episode.id,
-              episode_title: episode.title,
-              date: row.date,
-              downloads: row.downloads || 0,
-            });
-          }
-        } catch (err) {
-          console.warn(
-            `Failed to fetch metrics for episode ${episode.id}:`,
-            err
-          );
-        }
-      }
-
-      return metrics.sort(
-        (a, b) => new Date(a.date).getTime() - new Date(b.date).getTime()
-      );
-    } catch (error) {
-      console.error("Megaphone fetchEpisodeMetrics failed:", error);
-      throw error;
+      metrics.push({
+        platform: this.platform,
+        external_id: ep.id,
+        episode_title: ep.title,
+        date: pubDate.toISOString().split("T")[0],
+      });
     }
+
+    return metrics.sort(
+      (a, b) => new Date(a.date).getTime() - new Date(b.date).getTime()
+    );
   }
 }
