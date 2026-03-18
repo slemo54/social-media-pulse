@@ -64,7 +64,7 @@ export class YouTubeConnector implements PlatformConnector {
     });
   }
 
-  private async getAccessToken(): Promise<string> {
+  private async refreshAccessToken(refreshToken: string): Promise<string> {
     try {
       const response = await fetch("https://oauth2.googleapis.com/token", {
         method: "POST",
@@ -72,7 +72,7 @@ export class YouTubeConnector implements PlatformConnector {
         body: new URLSearchParams({
           client_id: this.clientId,
           client_secret: this.clientSecret,
-          refresh_token: this.refreshToken,
+          refresh_token: refreshToken,
           grant_type: "refresh_token",
         }),
       });
@@ -88,6 +88,23 @@ export class YouTubeConnector implements PlatformConnector {
       console.error("Failed to refresh YouTube access token:", error);
       throw error;
     }
+  }
+
+  private getRefreshTokenForChannel(channelId: string): string {
+    const creds = this.config?.channelCredentials?.[channelId];
+    if (creds?.refresh_token) {
+      return creds.refresh_token;
+    }
+    return this.refreshToken;
+  }
+
+  private async getAccessToken(): Promise<string> {
+    return this.refreshAccessToken(this.refreshToken);
+  }
+
+  private async getAccessTokenForChannel(channelId: string): Promise<string> {
+    const token = this.getRefreshTokenForChannel(channelId);
+    return this.refreshAccessToken(token);
   }
 
   async fetchDailyAggregates(
@@ -107,12 +124,12 @@ export class YouTubeConnector implements PlatformConnector {
     }
 
     try {
-      const accessToken = await this.getAccessToken();
       const allAggregates: NormalizedDailyAggregate[] = [];
 
       // Fetch analytics for each channel and aggregate by date
       for (const channelId of this.channelIds) {
         try {
+          const accessToken = await this.getAccessTokenForChannel(channelId);
           const params = new URLSearchParams({
             ids: `channel==${channelId}`,
             startDate,
@@ -208,12 +225,12 @@ export class YouTubeConnector implements PlatformConnector {
     }
 
     try {
-      const accessToken = await this.getAccessToken();
       const metrics: NormalizedEpisodeMetric[] = [];
 
       // Fetch videos from all channels
       for (const channelId of this.channelIds) {
         try {
+          const accessToken = await this.getAccessTokenForChannel(channelId);
           const videos = await this.fetchChannelVideos(accessToken, channelId);
 
           for (const video of videos) {

@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useMemo, useEffect } from "react";
-import { Eye, Users, Clock, RefreshCw, RotateCcw, ChevronDown, Youtube, Plus, X } from "lucide-react";
+import { Eye, Users, Clock, RefreshCw, RotateCcw, ChevronDown, Youtube, Plus, X, Link2 } from "lucide-react";
 import { Header } from "@/components/dashboard/header";
 import { KPICard } from "@/components/dashboard/kpi-card";
 import { PlatformChart } from "@/components/dashboard/platform-chart";
@@ -39,6 +39,7 @@ interface YouTubeChannel {
   videoCount?: number;
   viewCount?: number;
   thumbnailUrl?: string;
+  hasCredentials?: boolean;
 }
 
 const ALL_CHANNELS = "all";
@@ -64,6 +65,25 @@ export default function YouTubePage() {
   useEffect(() => {
     loadChannels();
   }, []);
+
+  // Listen for YouTube OAuth popup completion
+  useEffect(() => {
+    const handler = (event: MessageEvent) => {
+      if (event.data === "youtube-oauth-connected") {
+        loadChannels();
+      }
+    };
+    window.addEventListener("message", handler);
+    return () => window.removeEventListener("message", handler);
+  }, []);
+
+  const handleConnectGoogle = () => {
+    window.open(
+      "/api/auth/youtube",
+      "youtube-oauth",
+      "width=600,height=700,popup=yes"
+    );
+  };
 
   const handleAddChannel = async () => {
     if (!addHandle.trim()) return;
@@ -216,7 +236,7 @@ export default function YouTubePage() {
                     className={selectedChannelId === channel.id ? "bg-accent" : ""}
                   >
                     <Youtube className="mr-2 h-4 w-4 text-red-500" />
-                    <div className="flex flex-col min-w-0">
+                    <div className="flex flex-col min-w-0 flex-1">
                       <span className="truncate">{channel.title}</span>
                       {channel.subscriberCount !== undefined && (
                         <span className="text-xs text-muted-foreground">
@@ -224,6 +244,12 @@ export default function YouTubePage() {
                         </span>
                       )}
                     </div>
+                    <span
+                      className={`ml-2 h-2 w-2 rounded-full shrink-0 ${
+                        channel.hasCredentials ? "bg-green-500" : "bg-red-500"
+                      }`}
+                      title={channel.hasCredentials ? "Credentials connected" : "No credentials — connect Google account"}
+                    />
                   </DropdownMenuItem>
                 ))}
                 {channels.length === 0 && (
@@ -243,6 +269,17 @@ export default function YouTubePage() {
             >
               <Plus className="h-3.5 w-3.5" />
               Add Channel
+            </Button>
+
+            {/* Connect Google Account button */}
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleConnectGoogle}
+              className="flex items-center gap-1.5"
+            >
+              <Link2 className="h-3.5 w-3.5" />
+              Connect Google Account
             </Button>
           </div>
 
@@ -412,6 +449,12 @@ export default function YouTubePage() {
                     <div key={c.id} className="flex items-center gap-2 text-sm p-2 bg-muted rounded">
                       <Youtube className="h-3.5 w-3.5 text-red-500 shrink-0" />
                       <span className="font-medium truncate">{c.title}</span>
+                      <span
+                        className={`h-2 w-2 rounded-full shrink-0 ${
+                          c.hasCredentials ? "bg-green-500" : "bg-red-500"
+                        }`}
+                        title={c.hasCredentials ? "Connected" : "No credentials"}
+                      />
                       <span className="text-muted-foreground text-xs ml-auto shrink-0">{c.id}</span>
                     </div>
                   ))}

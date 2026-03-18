@@ -48,7 +48,7 @@ export function getConnector(
     case "megaphone":
       return new (require("./megaphone").MegaphoneConnector)();
     case "youtube":
-      return new (require("./youtube").YouTubeConnector)();
+      return new (require("./youtube").YouTubeConnector)(config);
     case "ga4":
       return new (require("./ga4").GA4Connector)();
     case "soundcloud":

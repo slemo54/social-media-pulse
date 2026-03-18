@@ -1,4 +1,5 @@
 import { NextResponse, type NextRequest } from "next/server";
+import { createAdminClient } from "@/lib/supabase/admin";
 
 interface YouTubeTokenResponse {
   access_token: string;
@@ -8,14 +9,14 @@ interface YouTubeAnalyticsRow {
   [index: number]: string | number;
 }
 
-async function getAccessToken(): Promise<string> {
+async function refreshAccessToken(refreshToken: string): Promise<string> {
   const response = await fetch("https://oauth2.googleapis.com/token", {
     method: "POST",
     headers: { "Content-Type": "application/x-www-form-urlencoded" },
     body: new URLSearchParams({
       client_id: process.env.YOUTUBE_CLIENT_ID || "",
       client_secret: process.env.YOUTUBE_CLIENT_SECRET || "",
-      refresh_token: process.env.YOUTUBE_OAUTH_REFRESH_TOKEN || "",
+      refresh_token: refreshToken,
       grant_type: "refresh_token",
     }),
   });
@@ -25,6 +26,27 @@ async function getAccessToken(): Promise<string> {
   }
   const data: YouTubeTokenResponse = await response.json();
   return data.access_token;
+}
+
+async function getRefreshTokenForChannel(channelId: string): Promise<string> {
+  try {
+    const supabaseAdmin = createAdminClient();
+    const { data: dataSource } = await supabaseAdmin
+      .from("data_sources")
+      .select("config")
+      .eq("platform", "youtube")
+      .single() as { data: { config: Record<string, unknown> } | null; error: unknown };
+
+    const config = dataSource?.config as Record<string, unknown> | undefined;
+    const creds = (config?.channelCredentials as Record<string, { refresh_token: string }> | undefined)?.[channelId];
+    if (creds?.refresh_token) {
+      return creds.refresh_token;
+    }
+  } catch {
+    // Fall through to env var
+  }
+
+  return process.env.YOUTUBE_OAUTH_REFRESH_TOKEN || "";
 }
 
 export async function GET(request: NextRequest) {
@@ -42,8 +64,7 @@ export async function GET(request: NextRequest) {
 
   const hasOAuth =
     process.env.YOUTUBE_CLIENT_ID &&
-    process.env.YOUTUBE_CLIENT_SECRET &&
-    process.env.YOUTUBE_OAUTH_REFRESH_TOKEN;
+    process.env.YOUTUBE_CLIENT_SECRET;
 
   if (!hasOAuth) {
     return NextResponse.json(
@@ -53,7 +74,15 @@ export async function GET(request: NextRequest) {
   }
 
   try {
-    const accessToken = await getAccessToken();
+    const refreshToken = await getRefreshTokenForChannel(channelId);
+    if (!refreshToken) {
+      return NextResponse.json(
+        { message: "No refresh token available for this channel. Connect the Google account that owns this channel." },
+        { status: 403 }
+      );
+    }
+
+    const accessToken = await refreshAccessToken(refreshToken);
 
     const params = new URLSearchParams({
       ids: `channel==${channelId}`,

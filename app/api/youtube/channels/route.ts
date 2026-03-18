@@ -8,6 +8,7 @@ interface YouTubeChannelInfo {
   videoCount: number;
   viewCount: number;
   thumbnailUrl?: string;
+  hasCredentials: boolean;
 }
 
 export async function GET() {
@@ -26,7 +27,9 @@ export async function GET() {
     }
 
     const channelIds: string[] = (dataSource.config?.channelIds as string[]) || [];
+    const channelCredentials = (dataSource.config?.channelCredentials as Record<string, { refresh_token: string }>) || {};
     const envChannelId = process.env.YOUTUBE_CHANNEL_ID;
+    const hasEnvToken = !!process.env.YOUTUBE_OAUTH_REFRESH_TOKEN;
     if (envChannelId && !channelIds.includes(envChannelId)) {
       channelIds.push(envChannelId);
     }
@@ -35,12 +38,20 @@ export async function GET() {
       return NextResponse.json({ channels: [] });
     }
 
+    const credentialStatus = new Map<string, boolean>();
+    for (const id of channelIds) {
+      credentialStatus.set(id, !!channelCredentials[id]?.refresh_token || (id === envChannelId && hasEnvToken));
+    }
+
     // Fetch channel info from YouTube API
     const apiKey = process.env.YOUTUBE_API_KEY;
     if (!apiKey) {
-      // Return channel IDs without names if no API key
       return NextResponse.json({
-        channels: channelIds.map((id) => ({ id, title: id })),
+        channels: channelIds.map((id) => ({
+          id,
+          title: id,
+          hasCredentials: credentialStatus.get(id) || false,
+        })),
       });
     }
 
@@ -56,7 +67,11 @@ export async function GET() {
 
     if (!response.ok) {
       return NextResponse.json({
-        channels: channelIds.map((id) => ({ id, title: id })),
+        channels: channelIds.map((id) => ({
+          id,
+          title: id,
+          hasCredentials: credentialStatus.get(id) || false,
+        })),
       });
     }
 
@@ -77,6 +92,7 @@ export async function GET() {
         videoCount: parseInt(item.statistics.videoCount || "0", 10),
         viewCount: parseInt(item.statistics.viewCount || "0", 10),
         thumbnailUrl: item.snippet.thumbnails?.default?.url,
+        hasCredentials: credentialStatus.get(item.id) || false,
       })
     );
 
