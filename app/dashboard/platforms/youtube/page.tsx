@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useMemo, useEffect } from "react";
-import { Eye, Users, Clock, RefreshCw, RotateCcw, ChevronDown, Youtube } from "lucide-react";
+import { Eye, Users, Clock, RefreshCw, RotateCcw, ChevronDown, Youtube, Plus, X } from "lucide-react";
 import { Header } from "@/components/dashboard/header";
 import { KPICard } from "@/components/dashboard/kpi-card";
 import { PlatformChart } from "@/components/dashboard/platform-chart";
@@ -9,6 +9,14 @@ import { EpisodeTable } from "@/components/dashboard/episode-table";
 import { DateRangePicker } from "@/components/dashboard/date-range-picker";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+} from "@/components/ui/dialog";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -40,15 +48,51 @@ export default function YouTubePage() {
   const [dateRange, setDateRange] = useState(DEFAULT_DATE_RANGE);
   const [selectedChannelId, setSelectedChannelId] = useState(ALL_CHANNELS);
   const [channels, setChannels] = useState<YouTubeChannel[]>([]);
+  const [addChannelOpen, setAddChannelOpen] = useState(false);
+  const [addHandle, setAddHandle] = useState("");
+  const [addLoading, setAddLoading] = useState(false);
+  const [addResult, setAddResult] = useState<{ success?: string; error?: string } | null>(null);
   const triggerSync = useTriggerSync();
 
-  // Fetch configured channels
-  useEffect(() => {
+  const loadChannels = () => {
     fetch("/api/youtube/channels")
       .then((r) => r.json())
       .then((data) => setChannels(data.channels || []))
       .catch(() => {});
+  };
+
+  useEffect(() => {
+    loadChannels();
   }, []);
+
+  const handleAddChannel = async () => {
+    if (!addHandle.trim()) return;
+    setAddLoading(true);
+    setAddResult(null);
+    try {
+      const res = await fetch("/api/youtube/add-channel", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ handle: addHandle.trim() }),
+      });
+      const data = await res.json();
+      if (res.ok) {
+        setAddResult({
+          success: data.alreadyExists
+            ? `"${data.channelTitle}" already configured`
+            : `Added "${data.channelTitle}" (${data.channelId})`,
+        });
+        setAddHandle("");
+        loadChannels();
+      } else {
+        setAddResult({ error: data.message });
+      }
+    } catch {
+      setAddResult({ error: "Network error" });
+    } finally {
+      setAddLoading(false);
+    }
+  };
 
   const { data: analytics, isLoading: analyticsLoading } = useAnalytics({
     startDate: dateRange.startDate,
@@ -152,6 +196,17 @@ export default function YouTubePage() {
                 )}
               </DropdownMenuContent>
             </DropdownMenu>
+
+            {/* Add Channel button */}
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => { setAddChannelOpen(true); setAddResult(null); }}
+              className="flex items-center gap-1.5"
+            >
+              <Plus className="h-3.5 w-3.5" />
+              Add Channel
+            </Button>
           </div>
 
           <div className="flex gap-2">
@@ -275,6 +330,60 @@ export default function YouTubePage() {
           </CardContent>
         </Card>
       </div>
+
+      {/* Add Channel Dialog */}
+      <Dialog open={addChannelOpen} onOpenChange={setAddChannelOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Youtube className="h-5 w-5 text-red-500" />
+              Add YouTube Channel
+            </DialogTitle>
+            <DialogDescription>
+              Enter the channel handle (e.g. @mammajumboshrimp) to add it to your dashboard.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 pt-2">
+            <div className="flex gap-2">
+              <Input
+                placeholder="@channelhandle"
+                value={addHandle}
+                onChange={(e) => setAddHandle(e.target.value)}
+                onKeyDown={(e) => e.key === "Enter" && handleAddChannel()}
+                disabled={addLoading}
+              />
+              <Button onClick={handleAddChannel} disabled={addLoading || !addHandle.trim()}>
+                {addLoading ? "Searching..." : "Add"}
+              </Button>
+            </div>
+            {addResult?.success && (
+              <p className="text-sm text-green-600 flex items-center gap-1.5">
+                ✓ {addResult.success}
+              </p>
+            )}
+            {addResult?.error && (
+              <p className="text-sm text-red-500 flex items-center gap-1.5">
+                <X className="h-3.5 w-3.5" />
+                {addResult.error}
+              </p>
+            )}
+            {channels.length > 0 && (
+              <div>
+                <p className="text-xs text-muted-foreground mb-2">Configured channels:</p>
+                <div className="space-y-1">
+                  {channels.map((c) => (
+                    <div key={c.id} className="flex items-center gap-2 text-sm p-2 bg-muted rounded">
+                      <Youtube className="h-3.5 w-3.5 text-red-500 shrink-0" />
+                      <span className="font-medium truncate">{c.title}</span>
+                      <span className="text-muted-foreground text-xs ml-auto shrink-0">{c.id}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
