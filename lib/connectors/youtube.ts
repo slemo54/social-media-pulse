@@ -113,8 +113,9 @@ export class YouTubeConnector implements PlatformConnector {
 
       if (!response.ok) {
         const errorText = await response.text();
+        console.error("YouTube Analytics API error response:", { status: response.status, body: errorText });
         throw new Error(
-          `YouTube Analytics API error: ${response.status} ${errorText}`
+          `YouTube Analytics API error: ${response.status} ${response.statusText} — ${errorText}`
         );
       }
 
@@ -228,7 +229,16 @@ export class YouTubeConnector implements PlatformConnector {
       );
 
       if (!response.ok) {
-        throw new Error(`YouTube Data API error: ${response.status}`);
+        const errorBody = await response.text();
+        console.error("YouTube Data API search error:", {
+          status: response.status,
+          statusText: response.statusText,
+          body: errorBody,
+          url: `https://www.googleapis.com/youtube/v3/search?${params}`,
+        });
+        throw new Error(
+          `YouTube Data API error: ${response.status} ${response.statusText} — ${errorBody}`
+        );
       }
 
       const data: YouTubeSearchResponse = await response.json();
@@ -263,7 +273,16 @@ export class YouTubeConnector implements PlatformConnector {
     );
 
     if (!response.ok) {
-      throw new Error(`YouTube Analytics per-video error: ${response.status}`);
+      const errorBody = await response.text();
+      console.error("YouTube Analytics per-video error:", {
+        status: response.status,
+        statusText: response.statusText,
+        body: errorBody,
+        videoId,
+      });
+      throw new Error(
+        `YouTube Analytics per-video error: ${response.status} ${response.statusText} — ${errorBody}`
+      );
     }
 
     const data: YouTubeAnalyticsResponse = await response.json();

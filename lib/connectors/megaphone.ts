@@ -68,12 +68,23 @@ export class MegaphoneConnector implements PlatformConnector {
     }
 
     try {
-      const url = `${MEGAPHONE_BASE_URL}/networks/${this.networkId}/podcasts/${this.podcastId}/download_stats?startDate=${startDate}&endDate=${endDate}`;
-      const response = await fetch(url, { headers: this.headers });
+      // Try the newer analytics endpoint first
+      let url = `${MEGAPHONE_BASE_URL}/networks/${this.networkId}/podcasts/${this.podcastId}/analytics/downloads?startDate=${startDate}&endDate=${endDate}`;
+      let response = await fetch(url, { headers: this.headers });
+
+      // Fallback to older download_stats endpoint if the new one doesn't work
+      if (!response.ok && response.status === 404) {
+        console.warn(
+          `Megaphone analytics endpoint returned 404, trying download_stats fallback`
+        );
+        url = `${MEGAPHONE_BASE_URL}/networks/${this.networkId}/podcasts/${this.podcastId}/download_stats?startDate=${startDate}&endDate=${endDate}`;
+        response = await fetch(url, { headers: this.headers });
+      }
 
       if (!response.ok) {
+        const errorBody = await response.text();
         throw new Error(
-          `Megaphone Analytics API error: ${response.status} ${response.statusText}`
+          `Megaphone Analytics API error: ${response.status} ${response.statusText} — ${errorBody}`
         );
       }
 
@@ -113,8 +124,9 @@ export class MegaphoneConnector implements PlatformConnector {
           const response = await fetch(url, { headers: this.headers });
 
           if (!response.ok) {
+            const errorBody = await response.text();
             console.warn(
-              `Failed to fetch download stats for episode ${episode.id}: ${response.status}`
+              `Failed to fetch download stats for episode ${episode.id}: ${response.status} — ${errorBody}`
             );
             continue;
           }
