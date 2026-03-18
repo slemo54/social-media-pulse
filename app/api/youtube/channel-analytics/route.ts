@@ -71,6 +71,7 @@ export async function GET(request: NextRequest) {
 
     if (!res.ok) {
       const errText = await res.text();
+      console.error(`YouTube Analytics API error for channel ${channelId}:`, res.status, errText);
       return NextResponse.json(
         { message: `YouTube Analytics error: ${res.status} ${errText}` },
         { status: 502 }
