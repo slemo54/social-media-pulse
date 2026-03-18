@@ -94,29 +94,66 @@ export default function YouTubePage() {
     }
   };
 
-  const { data: analytics, isLoading: analyticsLoading } = useAnalytics({
+  // DB-based analytics for "All Channels"
+  const { data: allAnalytics, isLoading: allLoading } = useAnalytics({
     startDate: dateRange.startDate,
     endDate: dateRange.endDate,
     platform: "youtube",
   });
 
+  // Live per-channel analytics
+  const [channelAnalytics, setChannelAnalytics] = useState<{
+    aggregates: Array<{ date: string; youtube: number; watch_time: number }>;
+    totals: Record<string, number>;
+    previousTotals: Record<string, number>;
+  } | null>(null);
+  const [channelLoading, setChannelLoading] = useState(false);
+
+  useEffect(() => {
+    if (selectedChannelId === ALL_CHANNELS) {
+      setChannelAnalytics(null);
+      return;
+    }
+    setChannelLoading(true);
+    fetch(
+      `/api/youtube/channel-analytics?channelId=${selectedChannelId}&startDate=${dateRange.startDate}&endDate=${dateRange.endDate}`
+    )
+      .then((r) => r.json())
+      .then((data) => {
+        if (data.aggregates) setChannelAnalytics(data);
+        else setChannelAnalytics(null);
+      })
+      .catch(() => setChannelAnalytics(null))
+      .finally(() => setChannelLoading(false));
+  }, [selectedChannelId, dateRange]);
+
+  const analyticsLoading = selectedChannelId === ALL_CHANNELS ? allLoading : channelLoading;
+
+  const totals =
+    selectedChannelId === ALL_CHANNELS
+      ? allAnalytics?.totals || {}
+      : channelAnalytics?.totals || {};
+
+  const prevTotals =
+    selectedChannelId === ALL_CHANNELS
+      ? allAnalytics?.previousTotals || {}
+      : channelAnalytics?.previousTotals || {};
+
   const { episodes, isLoading: episodesLoading } = useEpisodes({});
 
-  const totals = analytics?.totals || {};
-  const prevTotals = analytics?.previousTotals || {};
-
   const chartData = useMemo(() => {
-    if (!analytics?.aggregates) return [];
-    return (
-      analytics.aggregates as Array<{
-        date: string;
-        total_views: number | null;
-      }>
-    ).map((row) => ({
+    if (selectedChannelId === ALL_CHANNELS) {
+      if (!allAnalytics?.aggregates) return [];
+      return (
+        allAnalytics.aggregates as Array<{ date: string; total_views: number | null }>
+      ).map((row) => ({ date: row.date, youtube: row.total_views || 0 }));
+    }
+    if (!channelAnalytics?.aggregates) return [];
+    return channelAnalytics.aggregates.map((row) => ({
       date: row.date,
-      youtube: row.total_views || 0,
+      youtube: row.youtube,
     }));
-  }, [analytics?.aggregates]);
+  }, [selectedChannelId, allAnalytics?.aggregates, channelAnalytics?.aggregates]);
 
   const selectedChannel =
     selectedChannelId === ALL_CHANNELS
