@@ -4,6 +4,7 @@ export interface NormalizedDailyAggregate {
   downloads?: number;
   views?: number;
   sessions?: number;
+  users?: number;
   listeners?: number;
   watch_time_minutes?: number;
   likes?: number;

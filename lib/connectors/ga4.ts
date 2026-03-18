@@ -26,6 +26,35 @@ interface GA4RunReportResponse {
   rowCount?: number;
 }
 
+export interface GA4TrafficSource {
+  channel: string;
+  sessions: number;
+  users: number;
+  bounce_rate: number;
+}
+
+export interface GA4TopPage {
+  page: string;
+  sessions: number;
+  users: number;
+  views: number;
+  avg_duration: number;
+}
+
+export interface GA4Geographic {
+  country: string;
+  sessions: number;
+  users: number;
+  bounce_rate: number;
+}
+
+export interface GA4Device {
+  device: string;
+  sessions: number;
+  users: number;
+  bounce_rate: number;
+}
+
 function base64urlEncode(data: string | Buffer): string {
   const buf = typeof data === "string" ? Buffer.from(data) : data;
   return buf
@@ -129,6 +158,7 @@ export class GA4Connector implements PlatformConnector {
         dimensions: [{ name: "date" }],
         metrics: [
           { name: "sessions" },
+          { name: "activeUsers" },
           { name: "screenPageViews" },
           { name: "averageSessionDuration" },
           { name: "bounceRate" },
@@ -170,15 +200,233 @@ export class GA4Connector implements PlatformConnector {
           platform: this.platform,
           date: formattedDate,
           sessions: parseInt(row.metricValues[0].value, 10) || 0,
-          page_views: parseInt(row.metricValues[1].value, 10) || 0,
+          users: parseInt(row.metricValues[1].value, 10) || 0,
+          page_views: parseInt(row.metricValues[2].value, 10) || 0,
           avg_session_duration:
-            parseFloat(row.metricValues[2].value) || 0,
-          bounce_rate: parseFloat(row.metricValues[3].value) || 0,
+            parseFloat(row.metricValues[3].value) || 0,
+          bounce_rate: parseFloat(row.metricValues[4].value) || 0,
         };
       });
     } catch (error) {
       console.error("GA4 fetchDailyAggregates failed:", error);
       throw error;
+    }
+  }
+
+  async fetchTrafficSources(
+    startDate: string,
+    endDate: string
+  ): Promise<GA4TrafficSource[]> {
+    if (!this.propertyId || !this.serviceAccountJson) {
+      return [];
+    }
+
+    try {
+      const accessToken = await this.getAccessToken();
+
+      const requestBody = {
+        dateRanges: [{ startDate, endDate }],
+        dimensions: [{ name: "sessionDefaultChannelGroup" }],
+        metrics: [
+          { name: "sessions" },
+          { name: "activeUsers" },
+          { name: "bounceRate" },
+        ],
+        orderBys: [{ metric: { metricName: "sessions" }, descending: true }],
+        limit: 10,
+      };
+
+      const response = await fetch(
+        `https://analyticsdata.googleapis.com/v1beta/properties/${this.propertyId}:runReport`,
+        {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${accessToken}`,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify(requestBody),
+        }
+      );
+
+      if (!response.ok) {
+        throw new Error(`GA4 traffic sources API error: ${response.status}`);
+      }
+
+      const data: GA4RunReportResponse = await response.json();
+      if (!data.rows) return [];
+
+      return data.rows.map((row) => ({
+        channel: row.dimensionValues[0].value,
+        sessions: parseInt(row.metricValues[0].value, 10) || 0,
+        users: parseInt(row.metricValues[1].value, 10) || 0,
+        bounce_rate: parseFloat(row.metricValues[2].value) || 0,
+      }));
+    } catch (error) {
+      console.error("GA4 fetchTrafficSources failed:", error);
+      return [];
+    }
+  }
+
+  async fetchTopPages(
+    startDate: string,
+    endDate: string
+  ): Promise<GA4TopPage[]> {
+    if (!this.propertyId || !this.serviceAccountJson) {
+      return [];
+    }
+
+    try {
+      const accessToken = await this.getAccessToken();
+
+      const requestBody = {
+        dateRanges: [{ startDate, endDate }],
+        dimensions: [{ name: "pagePath" }],
+        metrics: [
+          { name: "sessions" },
+          { name: "activeUsers" },
+          { name: "screenPageViews" },
+          { name: "averageSessionDuration" },
+        ],
+        orderBys: [{ metric: { metricName: "screenPageViews" }, descending: true }],
+        limit: 15,
+      };
+
+      const response = await fetch(
+        `https://analyticsdata.googleapis.com/v1beta/properties/${this.propertyId}:runReport`,
+        {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${accessToken}`,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify(requestBody),
+        }
+      );
+
+      if (!response.ok) {
+        throw new Error(`GA4 top pages API error: ${response.status}`);
+      }
+
+      const data: GA4RunReportResponse = await response.json();
+      if (!data.rows) return [];
+
+      return data.rows.map((row) => ({
+        page: row.dimensionValues[0].value,
+        sessions: parseInt(row.metricValues[0].value, 10) || 0,
+        users: parseInt(row.metricValues[1].value, 10) || 0,
+        views: parseInt(row.metricValues[2].value, 10) || 0,
+        avg_duration: parseFloat(row.metricValues[3].value) || 0,
+      }));
+    } catch (error) {
+      console.error("GA4 fetchTopPages failed:", error);
+      return [];
+    }
+  }
+
+  async fetchGeographic(
+    startDate: string,
+    endDate: string
+  ): Promise<GA4Geographic[]> {
+    if (!this.propertyId || !this.serviceAccountJson) {
+      return [];
+    }
+
+    try {
+      const accessToken = await this.getAccessToken();
+
+      const requestBody = {
+        dateRanges: [{ startDate, endDate }],
+        dimensions: [{ name: "country" }],
+        metrics: [
+          { name: "sessions" },
+          { name: "activeUsers" },
+          { name: "bounceRate" },
+        ],
+        orderBys: [{ metric: { metricName: "sessions" }, descending: true }],
+        limit: 15,
+      };
+
+      const response = await fetch(
+        `https://analyticsdata.googleapis.com/v1beta/properties/${this.propertyId}:runReport`,
+        {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${accessToken}`,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify(requestBody),
+        }
+      );
+
+      if (!response.ok) {
+        throw new Error(`GA4 geographic API error: ${response.status}`);
+      }
+
+      const data: GA4RunReportResponse = await response.json();
+      if (!data.rows) return [];
+
+      return data.rows.map((row) => ({
+        country: row.dimensionValues[0].value,
+        sessions: parseInt(row.metricValues[0].value, 10) || 0,
+        users: parseInt(row.metricValues[1].value, 10) || 0,
+        bounce_rate: parseFloat(row.metricValues[2].value) || 0,
+      }));
+    } catch (error) {
+      console.error("GA4 fetchGeographic failed:", error);
+      return [];
+    }
+  }
+
+  async fetchDeviceBreakdown(
+    startDate: string,
+    endDate: string
+  ): Promise<GA4Device[]> {
+    if (!this.propertyId || !this.serviceAccountJson) {
+      return [];
+    }
+
+    try {
+      const accessToken = await this.getAccessToken();
+
+      const requestBody = {
+        dateRanges: [{ startDate, endDate }],
+        dimensions: [{ name: "deviceCategory" }],
+        metrics: [
+          { name: "sessions" },
+          { name: "activeUsers" },
+          { name: "bounceRate" },
+        ],
+        orderBys: [{ metric: { metricName: "sessions" }, descending: true }],
+      };
+
+      const response = await fetch(
+        `https://analyticsdata.googleapis.com/v1beta/properties/${this.propertyId}:runReport`,
+        {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${accessToken}`,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify(requestBody),
+        }
+      );
+
+      if (!response.ok) {
+        throw new Error(`GA4 device breakdown API error: ${response.status}`);
+      }
+
+      const data: GA4RunReportResponse = await response.json();
+      if (!data.rows) return [];
+
+      return data.rows.map((row) => ({
+        device: row.dimensionValues[0].value,
+        sessions: parseInt(row.metricValues[0].value, 10) || 0,
+        users: parseInt(row.metricValues[1].value, 10) || 0,
+        bounce_rate: parseFloat(row.metricValues[2].value) || 0,
+      }));
+    } catch (error) {
+      console.error("GA4 fetchDeviceBreakdown failed:", error);
+      return [];
     }
   }
 }

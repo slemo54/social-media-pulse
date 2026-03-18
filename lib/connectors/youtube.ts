@@ -35,21 +35,31 @@ export class YouTubeConnector implements PlatformConnector {
   private clientId: string;
   private clientSecret: string;
   private refreshToken: string;
-  private channelId: string;
+  private channelIds: string[];
   private apiKey: string;
+  private config?: Record<string, any>;
 
-  constructor() {
+  constructor(config?: Record<string, any>) {
     this.clientId = process.env.YOUTUBE_CLIENT_ID || "";
     this.clientSecret = process.env.YOUTUBE_CLIENT_SECRET || "";
     this.refreshToken = process.env.YOUTUBE_OAUTH_REFRESH_TOKEN || "";
-    this.channelId = process.env.YOUTUBE_CHANNEL_ID || "";
     this.apiKey = process.env.YOUTUBE_API_KEY || "";
+    this.config = config;
+
+    // Support multiple channel IDs from config, with fallback to env var
+    const configChannelIds = config?.channelIds || [];
+    const envChannelId = process.env.YOUTUBE_CHANNEL_ID || "";
+    this.channelIds = [
+      ...configChannelIds,
+      ...(envChannelId ? [envChannelId] : []),
+    ].filter((id) => id); // Remove duplicates and empty strings
 
     console.log("YouTube connector initialized:", {
       hasClientId: !!this.clientId,
       hasClientSecret: !!this.clientSecret,
       hasRefreshToken: !!this.refreshToken,
-      hasChannelId: !!this.channelId,
+      channelCount: this.channelIds.length,
+      channelIds: this.channelIds,
       hasApiKey: !!this.apiKey,
     });
   }
@@ -91,51 +101,90 @@ export class YouTubeConnector implements PlatformConnector {
       return [];
     }
 
+    if (this.channelIds.length === 0) {
+      console.warn("No YouTube channel IDs configured, returning empty results");
+      return [];
+    }
+
     try {
       const accessToken = await this.getAccessToken();
+      const allAggregates: NormalizedDailyAggregate[] = [];
 
-      const params = new URLSearchParams({
-        ids: `channel==${this.channelId}`,
-        startDate,
-        endDate,
-        metrics:
-          "views,estimatedMinutesWatched,likes,comments,shares,subscribersGained",
-        dimensions: "day",
-        sort: "day",
-      });
+      // Fetch analytics for each channel and aggregate by date
+      for (const channelId of this.channelIds) {
+        try {
+          const params = new URLSearchParams({
+            ids: `channel==${channelId}`,
+            startDate,
+            endDate,
+            metrics:
+              "views,estimatedMinutesWatched,likes,comments,shares,subscribersGained",
+            dimensions: "day",
+            sort: "day",
+          });
 
-      const response = await fetch(
-        `https://youtubeanalytics.googleapis.com/v2/reports?${params}`,
-        {
-          headers: { Authorization: `Bearer ${accessToken}` },
+          const response = await fetch(
+            `https://youtubeanalytics.googleapis.com/v2/reports?${params}`,
+            {
+              headers: { Authorization: `Bearer ${accessToken}` },
+            }
+          );
+
+          if (!response.ok) {
+            const errorText = await response.text();
+            console.warn(`YouTube Analytics API error for channel ${channelId}:`, {
+              status: response.status,
+              body: errorText,
+            });
+            continue; // Skip this channel on error
+          }
+
+          const data: YouTubeAnalyticsResponse = await response.json();
+
+          if (data.rows && data.rows.length > 0) {
+            // Column order: day, views, estimatedMinutesWatched, likes, comments, shares, subscribersGained
+            allAggregates.push(
+              ...data.rows.map((row) => ({
+                platform: this.platform,
+                date: String(row[0]),
+                views: Number(row[1]) || 0,
+                watch_time_minutes: Number(row[2]) || 0,
+                likes: Number(row[3]) || 0,
+                comments: Number(row[4]) || 0,
+                shares: Number(row[5]) || 0,
+                subscribers_gained: Number(row[6]) || 0,
+              }))
+            );
+          }
+        } catch (error) {
+          console.warn(`Failed to fetch analytics for channel ${channelId}:`, error);
+          continue;
         }
-      );
-
-      if (!response.ok) {
-        const errorText = await response.text();
-        console.error("YouTube Analytics API error response:", { status: response.status, body: errorText });
-        throw new Error(
-          `YouTube Analytics API error: ${response.status} ${response.statusText} — ${errorText}`
-        );
       }
 
-      const data: YouTubeAnalyticsResponse = await response.json();
+      // Aggregate by date (sum across all channels)
+      const aggregatesByDate = new Map<string, NormalizedDailyAggregate>();
 
-      if (!data.rows || data.rows.length === 0) {
-        return [];
+      for (const agg of allAggregates) {
+        const existing = aggregatesByDate.get(agg.date);
+        if (existing) {
+          aggregatesByDate.set(agg.date, {
+            ...existing,
+            views: (existing.views || 0) + (agg.views || 0),
+            watch_time_minutes:
+              (existing.watch_time_minutes || 0) + (agg.watch_time_minutes || 0),
+            likes: (existing.likes || 0) + (agg.likes || 0),
+            comments: (existing.comments || 0) + (agg.comments || 0),
+            shares: (existing.shares || 0) + (agg.shares || 0),
+            subscribers_gained:
+              (existing.subscribers_gained || 0) + (agg.subscribers_gained || 0),
+          });
+        } else {
+          aggregatesByDate.set(agg.date, agg);
+        }
       }
 
-      // Column order: day, views, estimatedMinutesWatched, likes, comments, shares, subscribersGained
-      return data.rows.map((row) => ({
-        platform: this.platform,
-        date: String(row[0]),
-        views: Number(row[1]) || 0,
-        watch_time_minutes: Number(row[2]) || 0,
-        likes: Number(row[3]) || 0,
-        comments: Number(row[4]) || 0,
-        shares: Number(row[5]) || 0,
-        subscribers_gained: Number(row[6]) || 0,
-      }));
+      return Array.from(aggregatesByDate.values());
     } catch (error) {
       console.error("YouTube fetchDailyAggregates failed:", error);
       throw error;
@@ -153,37 +202,52 @@ export class YouTubeConnector implements PlatformConnector {
       return [];
     }
 
+    if (this.channelIds.length === 0) {
+      console.warn("No YouTube channel IDs configured, returning empty results");
+      return [];
+    }
+
     try {
       const accessToken = await this.getAccessToken();
-
-      // Get channel videos
-      const videos = await this.fetchChannelVideos(accessToken);
       const metrics: NormalizedEpisodeMetric[] = [];
 
-      for (const video of videos) {
+      // Fetch videos from all channels
+      for (const channelId of this.channelIds) {
         try {
-          const videoMetrics = await this.fetchVideoAnalytics(
-            accessToken,
-            video.id.videoId,
-            startDate,
-            endDate
-          );
+          const videos = await this.fetchChannelVideos(accessToken, channelId);
 
-          for (const row of videoMetrics) {
-            metrics.push({
-              platform: this.platform,
-              external_id: video.id.videoId,
-              episode_title: video.snippet.title,
-              date: String(row[0]),
-              views: Number(row[1]) || 0,
-              likes: Number(row[2]) || 0,
-              comments: Number(row[3]) || 0,
-              watch_time_minutes: Number(row[4]) || 0,
-            });
+          for (const video of videos) {
+            try {
+              const videoMetrics = await this.fetchVideoAnalytics(
+                accessToken,
+                video.id.videoId,
+                startDate,
+                endDate,
+                channelId
+              );
+
+              for (const row of videoMetrics) {
+                metrics.push({
+                  platform: this.platform,
+                  external_id: video.id.videoId,
+                  episode_title: video.snippet.title,
+                  date: String(row[0]),
+                  views: Number(row[1]) || 0,
+                  likes: Number(row[2]) || 0,
+                  comments: Number(row[3]) || 0,
+                  watch_time_minutes: Number(row[4]) || 0,
+                });
+              }
+            } catch (error) {
+              console.warn(
+                `Failed to fetch analytics for video ${video.id.videoId}:`,
+                error
+              );
+            }
           }
         } catch (error) {
           console.warn(
-            `Failed to fetch analytics for video ${video.id.videoId}:`,
+            `Failed to fetch videos for channel ${channelId}:`,
             error
           );
         }
@@ -199,7 +263,8 @@ export class YouTubeConnector implements PlatformConnector {
   }
 
   private async fetchChannelVideos(
-    accessToken: string
+    accessToken: string,
+    channelId: string
   ): Promise<YouTubeVideoItem[]> {
     const videos: YouTubeVideoItem[] = [];
     let pageToken: string | undefined;
@@ -207,7 +272,7 @@ export class YouTubeConnector implements PlatformConnector {
     do {
       const params = new URLSearchParams({
         part: "snippet",
-        channelId: this.channelId,
+        channelId,
         type: "video",
         maxResults: "50",
         order: "date",
@@ -234,7 +299,7 @@ export class YouTubeConnector implements PlatformConnector {
           status: response.status,
           statusText: response.statusText,
           body: errorBody,
-          url: `https://www.googleapis.com/youtube/v3/search?${params}`,
+          channelId,
         });
         throw new Error(
           `YouTube Data API error: ${response.status} ${response.statusText} — ${errorBody}`
@@ -253,10 +318,11 @@ export class YouTubeConnector implements PlatformConnector {
     accessToken: string,
     videoId: string,
     startDate: string,
-    endDate: string
+    endDate: string,
+    channelId: string
   ): Promise<YouTubeAnalyticsRow[]> {
     const params = new URLSearchParams({
-      ids: `channel==${this.channelId}`,
+      ids: `channel==${channelId}`,
       startDate,
       endDate,
       metrics: "views,likes,comments,estimatedMinutesWatched",
@@ -279,6 +345,7 @@ export class YouTubeConnector implements PlatformConnector {
         statusText: response.statusText,
         body: errorBody,
         videoId,
+        channelId,
       });
       throw new Error(
         `YouTube Analytics per-video error: ${response.status} ${response.statusText} — ${errorBody}`

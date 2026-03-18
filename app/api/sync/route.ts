@@ -120,6 +120,7 @@ export async function POST(request: Request) {
             total_watch_time: agg.watch_time_minutes ?? null,
             pageviews: agg.page_views ?? null,
             sessions: agg.sessions ?? null,
+            users: agg.users ?? null,
             bounce_rate: agg.bounce_rate ?? null,
             raw_data: JSON.stringify({
               likes: agg.likes ?? null,
