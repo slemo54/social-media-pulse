@@ -47,6 +47,116 @@ function withPercentage<T extends { sessions: number }>(
   return items.map((i) => ({ ...i, percentage: Math.round((i.sessions / total) * 1000) / 10 }));
 }
 
+// ── YouTube top videos (direct Analytics API, not DB) ─────
+
+async function fetchTopYouTubeVideos(
+  startDate: string,
+  endDate: string,
+): Promise<{ title: string; views: number; likes: number; watchTimeMinutes: number }[]> {
+  const clientId = process.env.YOUTUBE_CLIENT_ID || "";
+  const clientSecret = process.env.YOUTUBE_CLIENT_SECRET || "";
+  if (!clientId || !clientSecret) return [];
+
+  try {
+    const supabase = createClient();
+    const { data: ytSource } = await supabase
+      .from("data_sources")
+      .select("config")
+      .eq("platform", "youtube")
+      .single() as { data: { config: Record<string, unknown> } | null; error: unknown };
+
+    const config = ytSource?.config as {
+      channelIds?: string[];
+      channelCredentials?: Record<string, { refresh_token: string }>;
+    } | null;
+
+    const channelIds = config?.channelIds || [];
+    if (channelIds.length === 0) return [];
+
+    const allVideos = new Map<string, { title: string; views: number; likes: number; watchTimeMinutes: number }>();
+
+    for (const channelId of channelIds) {
+      try {
+        const creds = config?.channelCredentials?.[channelId];
+        const refreshToken = creds?.refresh_token || process.env.YOUTUBE_OAUTH_REFRESH_TOKEN || "";
+        if (!refreshToken) continue;
+
+        // Refresh access token
+        const tokenRes = await fetch("https://oauth2.googleapis.com/token", {
+          method: "POST",
+          headers: { "Content-Type": "application/x-www-form-urlencoded" },
+          body: new URLSearchParams({
+            client_id: clientId,
+            client_secret: clientSecret,
+            refresh_token: refreshToken,
+            grant_type: "refresh_token",
+          }),
+        });
+        if (!tokenRes.ok) continue;
+        const { access_token: accessToken } = await tokenRes.json() as { access_token: string };
+
+        // Top videos for this channel/period
+        const analyticsParams = new URLSearchParams({
+          ids: `channel==${channelId}`,
+          startDate,
+          endDate,
+          metrics: "views,likes,estimatedMinutesWatched",
+          dimensions: "video",
+          sort: "-views",
+          maxResults: "5",
+        });
+        const analyticsRes = await fetch(
+          `https://youtubeanalytics.googleapis.com/v2/reports?${analyticsParams}`,
+          { headers: { Authorization: `Bearer ${accessToken}` } }
+        );
+        if (!analyticsRes.ok) continue;
+        const analyticsJson = await analyticsRes.json() as { rows?: [string, number, number, number][] };
+        const rows = analyticsJson.rows || [];
+        if (rows.length === 0) continue;
+
+        // Get video titles from Data API
+        const videoIds = rows.map((r) => r[0]).join(",");
+        const dataRes = await fetch(
+          `https://www.googleapis.com/youtube/v3/videos?part=snippet&id=${videoIds}`,
+          { headers: { Authorization: `Bearer ${accessToken}` } }
+        );
+        const titleMap = new Map<string, string>();
+        if (dataRes.ok) {
+          const dataJson = await dataRes.json() as { items?: { id: string; snippet: { title: string } }[] };
+          for (const item of dataJson.items || []) {
+            titleMap.set(item.id, item.snippet.title);
+          }
+        }
+
+        for (const [videoId, views, likes, watchTime] of rows) {
+          const existing = allVideos.get(videoId);
+          if (existing) {
+            existing.views += views;
+            existing.likes += likes;
+            existing.watchTimeMinutes += watchTime;
+          } else {
+            allVideos.set(videoId, {
+              title: titleMap.get(videoId) || videoId,
+              views,
+              likes,
+              watchTimeMinutes: Math.round(watchTime),
+            });
+          }
+        }
+      } catch {
+        // skip failing channel
+      }
+    }
+
+    return Array.from(allVideos.values())
+      .sort((a, b) => b.views - a.views)
+      .slice(0, 5)
+      .filter((v) => v.views > 0);
+  } catch {
+    return [];
+  }
+}
+
 // ── Insight generator ────────────────────────────────────
 
 function generateInsights(
@@ -146,7 +256,7 @@ export async function GET(request: NextRequest) {
     const ga4 = new GA4Connector();
     const supabase = createClient();
 
-    // ── Parallel fetch: GA4 (6 calls) + Supabase (4 queries) ──
+    // ── Parallel fetch: GA4 (6 calls) + Supabase (3 queries) + YouTube top videos ──
 
     const [
       ga4Daily,
@@ -157,9 +267,8 @@ export async function GET(request: NextRequest) {
       ga4PrevDaily,
       episodesResult,
       prevEpisodesResult,
-      ytMetricsResult,
-      scMetricsResult,
       syncStatusResult,
+      topYouTubeContent,
     ] = await Promise.all([
       ga4.fetchDailyAggregates(startDate, endDate),
       ga4.fetchTrafficSources(startDate, endDate) as Promise<GA4TrafficSource[]>,
@@ -167,7 +276,7 @@ export async function GET(request: NextRequest) {
       ga4.fetchGeographic(startDate, endDate) as Promise<GA4Geographic[]>,
       ga4.fetchDeviceBreakdown(startDate, endDate) as Promise<GA4Device[]>,
       ga4.fetchDailyAggregates(prevStart, prevEnd),
-      // Episodes in current period
+      // Episodes in current period (for editorial impact)
       supabase
         .from("episodes")
         .select("id,title,pub_date")
@@ -180,24 +289,14 @@ export async function GET(request: NextRequest) {
         .select("id", { count: "exact", head: true })
         .gte("pub_date", prevStart)
         .lte("pub_date", prevEnd),
-      // YouTube metrics
-      supabase
-        .from("episode_metrics")
-        .select("episode_id,views,likes,watch_time_minutes")
-        .eq("platform", "youtube")
-        .gte("date", startDate)
-        .lte("date", endDate),
-      // SoundCloud metrics (lifetime plays stored as views)
-      supabase
-        .from("episode_metrics")
-        .select("episode_id,views")
-        .eq("platform", "soundcloud"),
       // Last sync time for GA4
       supabase
         .from("data_sources")
         .select("last_sync_at")
         .eq("platform", "ga4")
         .single(),
+      // Top YouTube videos directly from Analytics API
+      fetchTopYouTubeVideos(startDate, endDate),
     ]);
 
     // ── Compute site KPIs ──
@@ -210,22 +309,13 @@ export async function GET(request: NextRequest) {
     const episodes: { id: string; title: string; pub_date: string }[] =
       (episodesResult.data as { id: string; title: string; pub_date: string }[]) || [];
 
-    // Find which episode IDs have YouTube metrics
-    const ytEpisodeIds = new Set(
-      ((ytMetricsResult.data as { episode_id: string }[]) || []).map(
-        (m) => m.episode_id
-      )
-    );
-
-    const videoEpisodes = episodes.filter((e) => ytEpisodeIds.has(e.id));
-    const podcastEpisodes = episodes.filter((e) => !ytEpisodeIds.has(e.id));
     const prevContentTotal = prevEpisodesResult.count || 0;
 
-    // ── Content markers for chart ──
+    // ── Content markers for chart (all episodes = podcasts from Megaphone) ──
 
     const contentMarkers = episodes.map((e) => ({
       date: e.pub_date,
-      type: (ytEpisodeIds.has(e.id) ? "video" : "podcast") as "video" | "podcast",
+      type: "podcast" as "video" | "podcast",
       title: e.title,
     }));
 
@@ -295,7 +385,7 @@ export async function GET(request: NextRequest) {
           maxDelta = delta;
           bestContent = {
             title: ep.title,
-            type: ytEpisodeIds.has(ep.id) ? "video" : "podcast",
+            type: "podcast",
             sessionsDelta: Math.round(delta),
             sessionsDeltaPercent: Math.round(
               (delta / (2 * avgWithout)) * 100
@@ -316,117 +406,9 @@ export async function GET(request: NextRequest) {
       { date: "", sessions: 0 }
     );
 
-    // ── Top YouTube content ──
-
-    const ytMetrics =
-      (ytMetricsResult.data as {
-        episode_id: string;
-        views: number | null;
-        likes: number | null;
-        watch_time_minutes: number | null;
-      }[]) || [];
-
-    const ytByEpisode = new Map<
-      string,
-      { views: number; likes: number; watchTimeMinutes: number }
-    >();
-    for (const m of ytMetrics) {
-      const existing = ytByEpisode.get(m.episode_id) || {
-        views: 0,
-        likes: 0,
-        watchTimeMinutes: 0,
-      };
-      existing.views += m.views || 0;
-      existing.likes += m.likes || 0;
-      existing.watchTimeMinutes += m.watch_time_minutes || 0;
-      ytByEpisode.set(m.episode_id, existing);
-    }
-
-    // Get episode titles for top YouTube content
-    const topYtIds = Array.from(ytByEpisode.entries())
-      .sort(([, a], [, b]) => b.views - a.views)
-      .slice(0, 5)
-      .map(([id]) => id);
-
-    let topYouTubeContent: {
-      title: string;
-      views: number;
-      likes: number;
-      watchTimeMinutes: number;
-    }[] = [];
-
-    if (topYtIds.length > 0) {
-      const { data: ytEps } = await supabase
-        .from("episodes")
-        .select("id,title")
-        .in("id", topYtIds);
-
-      const titleMap = new Map(
-        ((ytEps as { id: string; title: string }[]) || []).map((e) => [
-          e.id,
-          e.title,
-        ])
-      );
-
-      topYouTubeContent = topYtIds
-        .map((id) => {
-          const m = ytByEpisode.get(id)!;
-          return {
-            title: titleMap.get(id) || id,
-            views: m.views,
-            likes: m.likes,
-            watchTimeMinutes: Math.round(m.watchTimeMinutes),
-          };
-        })
-        .filter((c) => c.views > 0);
-    }
-
-    // ── Top audio content (SoundCloud lifetime plays) ──
-
-    const scMetrics =
-      (scMetricsResult.data as {
-        episode_id: string;
-        views: number | null;
-      }[]) || [];
-
-    const scByEpisode = new Map<string, number>();
-    for (const m of scMetrics) {
-      const existing = scByEpisode.get(m.episode_id) || 0;
-      scByEpisode.set(m.episode_id, Math.max(existing, m.views || 0));
-    }
-
-    const topScIds = Array.from(scByEpisode.entries())
-      .sort(([, a], [, b]) => b - a)
-      .slice(0, 5)
-      .map(([id]) => id);
-
-    let topAudioContent: {
-      title: string;
-      plays: number;
-      isLifetime: true;
-    }[] = [];
-
-    if (topScIds.length > 0) {
-      const { data: scEps } = await supabase
-        .from("episodes")
-        .select("id,title")
-        .in("id", topScIds);
-
-      const scTitleMap = new Map(
-        ((scEps as { id: string; title: string }[]) || []).map((e) => [
-          e.id,
-          e.title,
-        ])
-      );
-
-      topAudioContent = topScIds
-        .map((id) => ({
-          title: scTitleMap.get(id) || id,
-          plays: scByEpisode.get(id) || 0,
-          isLifetime: true as const,
-        }))
-        .filter((c) => c.plays > 0);
-    }
+    // topYouTubeContent is already resolved from Promise.all above
+    // topAudioContent: SoundCloud data not yet available (token needs reconnection)
+    const topAudioContent: { title: string; plays: number; isLifetime: true }[] = [];
 
     // ── Traffic sources with percentages ──
 
@@ -508,8 +490,8 @@ export async function GET(request: NextRequest) {
         prevBounceRate: Math.round(prevSummary.bounceRate * 10) / 10,
         contentPublished: {
           total: episodes.length,
-          videos: videoEpisodes.length,
-          podcasts: podcastEpisodes.length,
+          videos: 0,
+          podcasts: episodes.length,
           prevTotal: prevContentTotal,
         },
       },
@@ -532,8 +514,8 @@ export async function GET(request: NextRequest) {
       topAudioContent,
       editorialImpact: {
         totalPublished: episodes.length,
-        videos: videoEpisodes.length,
-        podcasts: podcastEpisodes.length,
+        videos: 0,
+        podcasts: episodes.length,
         avgSessionsWithPublication: Math.round(avgWith),
         avgSessionsWithoutPublication: Math.round(avgWithout),
         publicationLiftPercent: Math.round(publicationLift * 10) / 10,
