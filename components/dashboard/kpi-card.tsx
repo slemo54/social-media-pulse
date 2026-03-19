@@ -14,6 +14,7 @@ interface KPICardProps {
   loading?: boolean;
   color?: string;
   tooltip?: string;
+  invertChange?: boolean;
 }
 
 export function KPICard({
@@ -24,6 +25,7 @@ export function KPICard({
   loading = false,
   color,
   tooltip,
+  invertChange = false,
 }: KPICardProps) {
   if (loading) {
     return (
@@ -40,7 +42,7 @@ export function KPICard({
     );
   }
 
-  const isPositive = change >= 0;
+  const isPositive = invertChange ? change <= 0 : change >= 0;
 
   return (
     <Card>
@@ -76,7 +78,7 @@ export function KPICard({
             {isPositive ? "+" : ""}
             {change.toFixed(1)}%
           </span>
-          <span>from previous period</span>
+          <span>vs periodo prec.</span>
         </p>
       </CardContent>
     </Card>

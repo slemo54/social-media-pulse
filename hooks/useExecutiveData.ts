@@ -2,74 +2,115 @@
 
 import { useQuery } from "@tanstack/react-query";
 
-export interface ExecutiveKPIs {
-  downloads: number;
-  views: number;
-  sessions: number;
-  listeners: number;
-  reach: number;
-}
+export interface ExecutiveResponse {
+  period: {
+    start: string;
+    end: string;
+    prevStart: string;
+    prevEnd: string;
+  };
 
-export interface TrendPoint {
-  date: string;
-  value: number;
-  ma7: number;
-}
+  siteKPIs: {
+    sessions: number;
+    prevSessions: number;
+    users: number;
+    prevUsers: number;
+    pageViews: number;
+    prevPageViews: number;
+    avgSessionDuration: number;
+    prevAvgSessionDuration: number;
+    bounceRate: number;
+    prevBounceRate: number;
+    contentPublished: {
+      total: number;
+      videos: number;
+      podcasts: number;
+      prevTotal: number;
+    };
+  };
 
-export interface SparklinePoint {
-  date: string;
-  downloads: number;
-  views: number;
-  sessions: number;
-  listeners: number;
-  reach: number;
-}
+  siteTrend: {
+    daily: Array<{ date: string; sessions: number; users: number }>;
+    contentMarkers: Array<{
+      date: string;
+      type: "video" | "podcast";
+      title: string;
+    }>;
+    summary: {
+      avgDailySessions: number;
+      bestDay: { date: string; sessions: number };
+      withPublicationAvg: number;
+      withoutPublicationAvg: number;
+      publicationLift: number;
+    };
+  };
 
-export interface TopEpisode {
-  id: string;
-  title: string;
-  series: string | null;
-  pub_date: string | null;
-  downloads: number;
-  views: number;
-  reach: number;
-}
+  trafficSources: Array<{
+    channel: string;
+    sessions: number;
+    users: number;
+    percentage: number;
+  }>;
+  topCountries: Array<{
+    country: string;
+    sessions: number;
+    percentage: number;
+  }>;
+  deviceBreakdown: Array<{
+    device: string;
+    sessions: number;
+    percentage: number;
+  }>;
 
-export interface SeriesPerformance {
-  series: string;
-  episodeCount: number;
-  avgDownloads: number;
-  trend: number;
-}
+  topPages: Array<{
+    page: string;
+    views: number;
+    users: number;
+    avgDuration: number;
+  }>;
+  topYouTubeContent: Array<{
+    title: string;
+    views: number;
+    likes: number;
+    watchTimeMinutes: number;
+  }>;
+  topAudioContent: Array<{
+    title: string;
+    plays: number;
+    isLifetime: true;
+  }>;
 
-export interface HeatmapDay {
-  day: string;
-  downloads: number;
-  views: number;
-  sessions: number;
-}
+  editorialImpact: {
+    totalPublished: number;
+    videos: number;
+    podcasts: number;
+    avgSessionsWithPublication: number;
+    avgSessionsWithoutPublication: number;
+    publicationLiftPercent: number;
+    avg48hEffect: number;
+    bestContent: {
+      title: string;
+      type: "video" | "podcast";
+      sessionsDelta: number;
+      sessionsDeltaPercent: number;
+    } | null;
+  };
 
-export interface ExecutiveData {
-  totals: ExecutiveKPIs;
-  prevTotals: ExecutiveKPIs;
-  trendData: TrendPoint[];
-  sparklineData: SparklinePoint[];
-  topEpisodes: TopEpisode[];
-  seriesPerformance: SeriesPerformance[];
-  heatmap: HeatmapDay[];
+  insights: string[];
+  recommendation: string;
+  lastSyncAt: string | null;
 }
 
 interface UseExecutiveDataParams {
   startDate: string;
   endDate: string;
-  metric?: string;
 }
 
-export function useExecutiveData({ startDate, endDate, metric = "downloads" }: UseExecutiveDataParams) {
-  return useQuery<ExecutiveData>({
-    queryKey: ["executive", startDate, endDate, metric],
+export function useExecutiveData({ startDate, endDate }: UseExecutiveDataParams) {
+  return useQuery<ExecutiveResponse>({
+    queryKey: ["executive", startDate, endDate],
     queryFn: async () => {
-      const params = new URLSearchParams({ startDate, endDate, metric });
+      const params = new URLSearchParams({ startDate, endDate });
       const res = await fetch(`/api/executive?${params}`);
       if (!res.ok) throw new Error("Failed to fetch executive data");
       return res.json();
