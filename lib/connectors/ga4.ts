@@ -246,7 +246,7 @@ export class GA4Connector implements PlatformConnector {
           { name: "activeUsers" },
           { name: "bounceRate" },
         ],
-        orderBys: [{ metric: { metricName: "sessions" }, descending: true }],
+        orderBys: [{ metric: { metricName: "sessions" }, desc: true }],
         limit: 10,
       };
 
@@ -301,7 +301,7 @@ export class GA4Connector implements PlatformConnector {
           { name: "screenPageViews" },
           { name: "averageSessionDuration" },
         ],
-        orderBys: [{ metric: { metricName: "screenPageViews" }, descending: true }],
+        orderBys: [{ metric: { metricName: "screenPageViews" }, desc: true }],
         limit: 15,
       };
 
@@ -356,7 +356,7 @@ export class GA4Connector implements PlatformConnector {
           { name: "activeUsers" },
           { name: "bounceRate" },
         ],
-        orderBys: [{ metric: { metricName: "sessions" }, descending: true }],
+        orderBys: [{ metric: { metricName: "sessions" }, desc: true }],
         limit: 15,
       };
 
