@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useMemo, useEffect } from "react";
-import { Eye, Users, Clock, RefreshCw, RotateCcw, ChevronDown, Youtube, Plus, X, Link2 } from "lucide-react";
+import { Eye, Users, Clock, RefreshCw, RotateCcw, ChevronDown, Youtube, Plus, X, Link2, Lightbulb, ThumbsUp, UserPlus } from "lucide-react";
 import { Header } from "@/components/dashboard/header";
 import { KPICard } from "@/components/dashboard/kpi-card";
 import { PlatformChart } from "@/components/dashboard/platform-chart";
@@ -30,7 +30,8 @@ import { useEpisodes } from "@/hooks/useEpisodes";
 import { useTriggerSync } from "@/hooks/useSyncStatus";
 import { useAuth } from "@/hooks/useAuth";
 import { DEFAULT_DATE_RANGE, PLATFORM_COLORS } from "@/lib/constants";
-import { formatNumber, calculateChange } from "@/lib/utils";
+import { formatNumber, calculateChange, cn } from "@/lib/utils";
+import type { YouTubeTopVideosResponse } from "@/app/api/youtube/top-videos/route";
 
 interface YouTubeChannel {
   id: string;
@@ -160,6 +161,21 @@ export default function YouTubePage() {
       : channelAnalytics?.previousTotals || {};
 
   const { episodes, isLoading: episodesLoading } = useEpisodes({});
+
+  // Top videos per period (Studio-style)
+  const [topVideos, setTopVideos] = useState<YouTubeTopVideosResponse | null>(null);
+  const [topVideosLoading, setTopVideosLoading] = useState(false);
+
+  useEffect(() => {
+    setTopVideosLoading(true);
+    const params = new URLSearchParams({ startDate: dateRange.startDate, endDate: dateRange.endDate });
+    if (selectedChannelId !== ALL_CHANNELS) params.set("channelId", selectedChannelId);
+    fetch(`/api/youtube/top-videos?${params}`)
+      .then((r) => r.json())
+      .then((d: YouTubeTopVideosResponse) => setTopVideos(d))
+      .catch(() => setTopVideos(null))
+      .finally(() => setTopVideosLoading(false));
+  }, [selectedChannelId, dateRange]);
 
   const chartData = useMemo(() => {
     if (selectedChannelId === ALL_CHANNELS) {
@@ -390,6 +406,126 @@ export default function YouTubePage() {
           title={`YouTube Views Over Time${selectedChannel ? ` — ${selectedChannel.title}` : ""}`}
           loading={analyticsLoading}
         />
+
+        {/* Top Videos — Studio-style table */}
+        <Card className="border-red-900/30">
+          <CardHeader className="pb-3">
+            <div className="flex items-center justify-between">
+              <CardTitle className="text-base flex items-center gap-2">
+                <Youtube className="h-4 w-4 text-red-500" />
+                Top Video per Viste
+              </CardTitle>
+              <span className="text-xs text-muted-foreground">
+                {selectedChannelId === ALL_CHANNELS ? "Tutti i canali" : selectedChannel?.title || selectedChannelId}
+              </span>
+            </div>
+          </CardHeader>
+          <CardContent>
+            {topVideosLoading ? (
+              <div className="space-y-2">{Array.from({ length: 5 }).map((_, i) => (
+                <div key={i} className="h-10 bg-muted rounded animate-pulse" />
+              ))}</div>
+            ) : !topVideos || topVideos.videos.length === 0 ? (
+              <p className="text-sm text-muted-foreground py-4 text-center">
+                Nessun dato video disponibile per il periodo. Assicurati che l&apos;account Google sia connesso.
+              </p>
+            ) : (
+              <div className="space-y-5">
+                {/* Channel KPI strip */}
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                  {[
+                    { icon: Eye, label: "Viste Totali", value: formatNumber(topVideos.channelSummary.totalViews) },
+                    { icon: Clock, label: "Watch Time", value: `${topVideos.channelSummary.totalWatchTimeHours.toLocaleString("it")}h` },
+                    { icon: UserPlus, label: "Nuovi Iscritti", value: `+${topVideos.channelSummary.totalSubscribersGained}` },
+                    { icon: ThumbsUp, label: "Like Totali", value: formatNumber(topVideos.channelSummary.totalLikes) },
+                  ].map(({ icon: Icon, label, value }) => (
+                    <div key={label} className="rounded-lg border border-red-900/20 bg-red-950/10 p-3 text-center">
+                      <Icon className="h-4 w-4 text-red-400 mx-auto mb-1" />
+                      <p className="text-xl font-bold tabular-nums">{value}</p>
+                      <p className="text-xs text-muted-foreground mt-0.5">{label}</p>
+                    </div>
+                  ))}
+                </div>
+
+                {/* Video table */}
+                <div className="overflow-x-auto">
+                  <table className="w-full text-sm">
+                    <thead>
+                      <tr className="border-b text-xs text-muted-foreground">
+                        <th className="text-left pb-2 pr-3 w-6">#</th>
+                        <th className="text-left pb-2 min-w-[200px]">Contenuto</th>
+                        <th className="text-right pb-2 px-3">Viste</th>
+                        <th className="text-right pb-2 px-3">Watch (h)</th>
+                        <th className="text-right pb-2 px-3">Retention</th>
+                        <th className="text-right pb-2 px-3">Durata media</th>
+                        <th className="text-right pb-2 pl-3">Iscritti +</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-border/50">
+                      {topVideos.videos.map((v, i) => {
+                        const barColor = i === 0 ? "bg-red-500" : i === 1 ? "bg-red-400" : "bg-red-300/70";
+                        const dur = v.avgViewDurationSeconds;
+                        const fmtDur = dur >= 60
+                          ? `${Math.floor(dur / 60)}m ${Math.round(dur % 60)}s`
+                          : `${dur}s`;
+                        return (
+                          <tr key={v.title} className="hover:bg-accent/30 transition-colors">
+                            <td className="py-2.5 pr-3 text-muted-foreground font-medium">{i + 1}</td>
+                            <td className="py-2.5 pr-3 max-w-[280px]">
+                              <p className="font-medium truncate">{v.title}</p>
+                              <div className="flex items-center gap-2 mt-1">
+                                <div className="flex-1 max-w-[120px] bg-muted rounded-full h-1.5">
+                                  <div className={cn("h-1.5 rounded-full", barColor)} style={{ width: `${Math.min(v.viewsPercent, 100)}%` }} />
+                                </div>
+                                <span className="text-xs text-muted-foreground shrink-0">{v.viewsPercent}%</span>
+                              </div>
+                            </td>
+                            <td className="py-2.5 px-3 text-right tabular-nums font-medium">{formatNumber(v.views)}</td>
+                            <td className="py-2.5 px-3 text-right tabular-nums text-muted-foreground">{v.watchTimeHours.toLocaleString("it")}h</td>
+                            <td className="py-2.5 px-3 text-right">
+                              <span className={cn(
+                                "text-xs font-semibold px-1.5 py-0.5 rounded",
+                                v.avgViewPercentage >= 50 ? "bg-emerald-500/10 text-emerald-400" :
+                                v.avgViewPercentage >= 30 ? "bg-amber-500/10 text-amber-400" :
+                                "bg-red-500/10 text-red-400"
+                              )}>
+                                {v.avgViewPercentage}%
+                              </span>
+                            </td>
+                            <td className="py-2.5 px-3 text-right tabular-nums text-muted-foreground">{fmtDur}</td>
+                            <td className="py-2.5 pl-3 text-right tabular-nums">
+                              {v.subscribersGained > 0
+                                ? <span className="text-emerald-400 font-medium">+{v.subscribersGained}</span>
+                                : <span className="text-muted-foreground">—</span>}
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+
+                {/* Insights */}
+                {topVideos.insights.length > 0 && (
+                  <div className="rounded-lg border border-red-900/20 bg-red-950/10 p-3 space-y-1.5">
+                    <p className="text-xs font-semibold text-red-400 flex items-center gap-1.5">
+                      <Lightbulb className="h-3.5 w-3.5" /> Insights
+                    </p>
+                    {topVideos.insights.map((ins, i) => (
+                      <p key={i} className="text-xs text-muted-foreground flex items-start gap-1.5">
+                        <span className="text-red-400/60 mt-0.5 shrink-0">•</span>
+                        <span>{ins}</span>
+                      </p>
+                    ))}
+                  </div>
+                )}
+                <p className="text-xs text-muted-foreground italic">
+                  Dati YouTube Analytics in tempo reale · Retention = % media del video guardato
+                </p>
+              </div>
+            )}
+          </CardContent>
+        </Card>
 
         {/* Episodes */}
         <Card>
