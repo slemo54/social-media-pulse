@@ -113,7 +113,7 @@ export async function GET(request: NextRequest) {
     }
 
     // Update data_sources
-    await supabaseAdmin
+    const { error: updateError } = await supabaseAdmin
       .from("data_sources")
       .update({
         config: {
@@ -121,10 +121,17 @@ export async function GET(request: NextRequest) {
           channelIds,
           channelCredentials,
         },
-        api_key_configured: true,
         updated_at: new Date().toISOString(),
       } as never)
       .eq("platform", "youtube");
+
+    if (updateError) {
+      console.error("Failed to save YouTube credentials:", updateError);
+      return new NextResponse(
+        `<html><body><h1>Failed to save credentials</h1><p>${updateError.message}</p><script>setTimeout(()=>window.close(),3000)</script></body></html>`,
+        { headers: { "Content-Type": "text/html" } }
+      );
+    }
 
     const namesStr = connectedNames.join(", ");
     return new NextResponse(
