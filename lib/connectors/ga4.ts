@@ -69,6 +69,9 @@ export class GA4Connector implements PlatformConnector {
 
   private propertyId: string;
   private serviceAccountJson: string;
+  // Cache token within a single connector instance to avoid N parallel token requests
+  private _tokenPromise: Promise<string> | null = null;
+  private _tokenExpiresAt = 0;
 
   constructor() {
     this.propertyId = process.env.GA4_PROPERTY_ID || "";
@@ -86,6 +89,17 @@ export class GA4Connector implements PlatformConnector {
   }
 
   private async getAccessToken(): Promise<string> {
+    const now = Math.floor(Date.now() / 1000);
+    // Reuse cached token promise if it won't expire in the next 60 s
+    if (this._tokenPromise && this._tokenExpiresAt > now + 60) {
+      return this._tokenPromise;
+    }
+    this._tokenExpiresAt = now + 3600;
+    this._tokenPromise = this._fetchAccessToken();
+    return this._tokenPromise;
+  }
+
+  private async _fetchAccessToken(): Promise<string> {
     const sa = this.parseServiceAccount();
 
     const now = Math.floor(Date.now() / 1000);
