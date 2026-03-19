@@ -371,20 +371,20 @@ export default function YouTubePage() {
             loading={analyticsLoading}
           />
           <KPICard
-            title="Pageviews"
-            value={formatNumber(totals.pageviews || 0)}
-            change={calculateChange(totals.pageviews || 0, prevTotals.pageviews || 0)}
+            title="Viste (Analytics)"
+            value={formatNumber(topVideos?.channelSummary.totalViews || 0)}
+            change={0}
             icon={Eye}
             color={PLATFORM_COLORS.youtube}
-            loading={analyticsLoading}
+            loading={topVideosLoading}
           />
           <KPICard
-            title="Users"
-            value={formatNumber(totals.users || 0)}
-            change={calculateChange(totals.users || 0, prevTotals.users || 0)}
-            icon={Users}
+            title="Nuovi Iscritti"
+            value={`+${topVideos?.channelSummary.totalSubscribersGained || 0}`}
+            change={0}
+            icon={UserPlus}
             color={PLATFORM_COLORS.youtube}
-            loading={analyticsLoading}
+            loading={topVideosLoading}
           />
           <KPICard
             title="Watch Time (min)"
