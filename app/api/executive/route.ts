@@ -51,6 +51,7 @@ function withPercentage<T extends { sessions: number }>(
 
 export interface YouTubeVideoStat {
   title: string;
+  publishedAt: string | null;
   views: number;
   viewsPercent: number;
   watchTimeHours: number;
@@ -107,13 +108,14 @@ async function fetchTopYouTubeVideos(
 
     type VideoAccum = {
       title: string;
+      publishedAt: string | null;
       views: number;
       watchTimeMinutes: number;
       likes: number;
       subscribersGained: number;
       avgViewDurationSeconds: number;
       avgViewPercentage: number;
-      count: number; // for averaging per-video averages
+      count: number;
     };
 
     const allVideos = new Map<string, VideoAccum>();
@@ -166,10 +168,12 @@ async function fetchTopYouTubeVideos(
           { headers: { Authorization: `Bearer ${accessToken}` } }
         );
         const titleMap = new Map<string, string>();
+        const publishedMap = new Map<string, string>();
         if (dataRes.ok) {
-          const dataJson = await dataRes.json() as { items?: { id: string; snippet: { title: string } }[] };
+          const dataJson = await dataRes.json() as { items?: { id: string; snippet: { title: string; publishedAt: string } }[] };
           for (const item of dataJson.items || []) {
             titleMap.set(item.id, item.snippet.title);
+            publishedMap.set(item.id, item.snippet.publishedAt);
           }
         }
 
@@ -186,6 +190,7 @@ async function fetchTopYouTubeVideos(
           } else {
             allVideos.set(videoId, {
               title: titleMap.get(videoId) || videoId,
+              publishedAt: publishedMap.get(videoId) || null,
               views,
               watchTimeMinutes: watchMinutes,
               likes,
@@ -214,6 +219,7 @@ async function fetchTopYouTubeVideos(
 
     const videos: YouTubeVideoStat[] = sorted.slice(0, 10).map((v) => ({
       title: v.title,
+      publishedAt: v.publishedAt,
       views: v.views,
       viewsPercent: Math.round((v.views / totalViews) * 1000) / 10,
       watchTimeHours: Math.round((v.watchTimeMinutes / 60) * 10) / 10,

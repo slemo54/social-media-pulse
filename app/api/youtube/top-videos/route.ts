@@ -3,6 +3,7 @@ import { createClient } from "@/lib/supabase/server";
 
 export interface YouTubeVideoStat {
   title: string;
+  publishedAt: string | null; // ISO date
   views: number;
   viewsPercent: number;
   watchTimeHours: number;
@@ -76,6 +77,7 @@ export async function GET(request: NextRequest) {
 
     type VideoAccum = {
       title: string;
+      publishedAt: string | null;
       views: number;
       watchTimeMinutes: number;
       likes: number;
@@ -123,9 +125,13 @@ export async function GET(request: NextRequest) {
           { headers: { Authorization: `Bearer ${accessToken}` } }
         );
         const titleMap = new Map<string, string>();
+        const publishedMap = new Map<string, string>();
         if (dataRes.ok) {
-          const dj = await dataRes.json() as { items?: { id: string; snippet: { title: string } }[] };
-          for (const item of dj.items || []) titleMap.set(item.id, item.snippet.title);
+          const dj = await dataRes.json() as { items?: { id: string; snippet: { title: string; publishedAt: string } }[] };
+          for (const item of dj.items || []) {
+            titleMap.set(item.id, item.snippet.title);
+            publishedMap.set(item.id, item.snippet.publishedAt);
+          }
         }
 
         for (const [videoId, views, likes, watchMinutes, subs, avgDur, avgPct] of rows) {
@@ -141,6 +147,7 @@ export async function GET(request: NextRequest) {
           } else {
             allVideos.set(videoId, {
               title: titleMap.get(videoId) || videoId,
+              publishedAt: publishedMap.get(videoId) || null,
               views, watchTimeMinutes: watchMinutes, likes,
               subscribersGained: subs, avgViewDurationSeconds: avgDur,
               avgViewPercentage: avgPct, count: 1,
@@ -160,6 +167,7 @@ export async function GET(request: NextRequest) {
 
     const videos: YouTubeVideoStat[] = sorted.slice(0, 10).map((v) => ({
       title: v.title,
+      publishedAt: v.publishedAt,
       views: v.views,
       viewsPercent: Math.round((v.views / totalViews) * 1000) / 10,
       watchTimeHours: Math.round((v.watchTimeMinutes / 60) * 10) / 10,

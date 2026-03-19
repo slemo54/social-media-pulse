@@ -5,7 +5,6 @@ import { Eye, Users, Clock, RefreshCw, RotateCcw, ChevronDown, Youtube, Plus, X,
 import { Header } from "@/components/dashboard/header";
 import { KPICard } from "@/components/dashboard/kpi-card";
 import { PlatformChart } from "@/components/dashboard/platform-chart";
-import { EpisodeTable } from "@/components/dashboard/episode-table";
 import { DateRangePicker } from "@/components/dashboard/date-range-picker";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -26,7 +25,6 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { useAnalytics } from "@/hooks/useAnalytics";
-import { useEpisodes } from "@/hooks/useEpisodes";
 import { useTriggerSync } from "@/hooks/useSyncStatus";
 import { useAuth } from "@/hooks/useAuth";
 import { DEFAULT_DATE_RANGE, PLATFORM_COLORS } from "@/lib/constants";
@@ -159,8 +157,6 @@ export default function YouTubePage() {
     selectedChannelId === ALL_CHANNELS
       ? allAnalytics?.previousTotals || {}
       : channelAnalytics?.previousTotals || {};
-
-  const { episodes, isLoading: episodesLoading } = useEpisodes({});
 
   // Top videos per period (Studio-style)
   const [topVideos, setTopVideos] = useState<YouTubeTopVideosResponse | null>(null);
@@ -407,96 +403,102 @@ export default function YouTubePage() {
           loading={analyticsLoading}
         />
 
-        {/* Top Videos — Studio-style table */}
+        {/* Podcast / Video Analytics — Studio-style */}
         <Card className="border-red-900/30">
           <CardHeader className="pb-3">
-            <div className="flex items-center justify-between">
+            <div className="flex items-center justify-between flex-wrap gap-2">
               <CardTitle className="text-base flex items-center gap-2">
                 <Youtube className="h-4 w-4 text-red-500" />
-                Top Video per Viste
+                Podcast Analytics
+                <span className="text-xs font-normal text-muted-foreground">
+                  — top contenuti nel periodo
+                </span>
               </CardTitle>
-              <span className="text-xs text-muted-foreground">
+              <span className="text-xs text-muted-foreground bg-muted px-2 py-0.5 rounded-full">
                 {selectedChannelId === ALL_CHANNELS ? "Tutti i canali" : selectedChannel?.title || selectedChannelId}
               </span>
             </div>
           </CardHeader>
           <CardContent>
             {topVideosLoading ? (
-              <div className="space-y-2">{Array.from({ length: 5 }).map((_, i) => (
-                <div key={i} className="h-10 bg-muted rounded animate-pulse" />
-              ))}</div>
+              <div className="space-y-3">
+                <div className="grid grid-cols-4 gap-3">{Array.from({ length: 4 }).map((_, i) => <div key={i} className="h-16 bg-muted rounded animate-pulse" />)}</div>
+                <div className="space-y-2">{Array.from({ length: 8 }).map((_, i) => <div key={i} className="h-10 bg-muted rounded animate-pulse" />)}</div>
+              </div>
             ) : !topVideos || topVideos.videos.length === 0 ? (
-              <p className="text-sm text-muted-foreground py-4 text-center">
-                Nessun dato video disponibile per il periodo. Assicurati che l&apos;account Google sia connesso.
-              </p>
+              <div className="py-8 text-center space-y-2">
+                <p className="text-sm text-muted-foreground">Nessun dato disponibile per il periodo selezionato.</p>
+                <p className="text-xs text-muted-foreground">Assicurati che l&apos;account Google sia connesso tramite il pulsante &ldquo;Connect Google Account&rdquo; in alto.</p>
+              </div>
             ) : (
               <div className="space-y-5">
-                {/* Channel KPI strip */}
+                {/* KPI strip */}
                 <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
                   {[
-                    { icon: Eye, label: "Viste Totali", value: formatNumber(topVideos.channelSummary.totalViews) },
-                    { icon: Clock, label: "Watch Time", value: `${topVideos.channelSummary.totalWatchTimeHours.toLocaleString("it")}h` },
-                    { icon: UserPlus, label: "Nuovi Iscritti", value: `+${topVideos.channelSummary.totalSubscribersGained}` },
-                    { icon: ThumbsUp, label: "Like Totali", value: formatNumber(topVideos.channelSummary.totalLikes) },
-                  ].map(({ icon: Icon, label, value }) => (
+                    { icon: Eye,       label: "Viste Totali",   value: formatNumber(topVideos.channelSummary.totalViews),                        sub: "nel periodo" },
+                    { icon: Clock,     label: "Watch Time",     value: `${topVideos.channelSummary.totalWatchTimeHours.toLocaleString("it")}h`,   sub: "ore guardate" },
+                    { icon: UserPlus,  label: "Nuovi Iscritti", value: `+${topVideos.channelSummary.totalSubscribersGained}`,                    sub: "guadagnati" },
+                    { icon: ThumbsUp,  label: "Like Totali",    value: formatNumber(topVideos.channelSummary.totalLikes),                        sub: "nel periodo" },
+                  ].map(({ icon: Icon, label, value, sub }) => (
                     <div key={label} className="rounded-lg border border-red-900/20 bg-red-950/10 p-3 text-center">
                       <Icon className="h-4 w-4 text-red-400 mx-auto mb-1" />
                       <p className="text-xl font-bold tabular-nums">{value}</p>
-                      <p className="text-xs text-muted-foreground mt-0.5">{label}</p>
+                      <p className="text-xs font-medium text-red-400 mt-0.5">{label}</p>
+                      <p className="text-xs text-muted-foreground">{sub}</p>
                     </div>
                   ))}
                 </div>
 
-                {/* Video table */}
+                {/* Podcast episode table */}
                 <div className="overflow-x-auto">
                   <table className="w-full text-sm">
                     <thead>
                       <tr className="border-b text-xs text-muted-foreground">
-                        <th className="text-left pb-2 pr-3 w-6">#</th>
-                        <th className="text-left pb-2 min-w-[200px]">Contenuto</th>
-                        <th className="text-right pb-2 px-3">Viste</th>
-                        <th className="text-right pb-2 px-3">Watch (h)</th>
-                        <th className="text-right pb-2 px-3">Retention</th>
-                        <th className="text-right pb-2 px-3">Durata media</th>
-                        <th className="text-right pb-2 pl-3">Iscritti +</th>
+                        <th className="text-left pb-2 pr-2 w-6">#</th>
+                        <th className="text-left pb-2 min-w-[220px]">Episodio</th>
+                        <th className="text-right pb-2 px-2 hidden sm:table-cell">Pubblicato</th>
+                        <th className="text-right pb-2 px-2">Viste</th>
+                        <th className="text-right pb-2 px-2">
+                          <span title="Durata media visualizzata (MM:SS) e % del video guardato">Durata media (ret.)</span>
+                        </th>
+                        <th className="text-right pb-2 px-2 hidden md:table-cell">Watch (h)</th>
+                        <th className="text-right pb-2 pl-2">Iscritti +</th>
                       </tr>
                     </thead>
-                    <tbody className="divide-y divide-border/50">
+                    <tbody className="divide-y divide-border/40">
                       {topVideos.videos.map((v, i) => {
-                        const barColor = i === 0 ? "bg-red-500" : i === 1 ? "bg-red-400" : "bg-red-300/70";
                         const dur = v.avgViewDurationSeconds;
-                        const fmtDur = dur >= 60
-                          ? `${Math.floor(dur / 60)}m ${Math.round(dur % 60)}s`
-                          : `${dur}s`;
+                        const mm = Math.floor(dur / 60);
+                        const ss = String(Math.round(dur % 60)).padStart(2, "0");
+                        const fmtDur = dur >= 60 ? `${mm}:${ss}` : `0:${ss}`;
+                        const retColor = v.avgViewPercentage >= 50 ? "text-emerald-400" : v.avgViewPercentage >= 20 ? "text-amber-400" : "text-red-400";
+                        const pubDate = v.publishedAt
+                          ? new Date(v.publishedAt).toLocaleDateString("it", { day: "numeric", month: "short", year: "2-digit" })
+                          : "—";
+                        const barColor = i === 0 ? "bg-red-500" : i < 3 ? "bg-red-400" : "bg-red-300/60";
                         return (
-                          <tr key={v.title} className="hover:bg-accent/30 transition-colors">
-                            <td className="py-2.5 pr-3 text-muted-foreground font-medium">{i + 1}</td>
-                            <td className="py-2.5 pr-3 max-w-[280px]">
-                              <p className="font-medium truncate">{v.title}</p>
+                          <tr key={v.title} className="hover:bg-accent/20 transition-colors group">
+                            <td className="py-2.5 pr-2 text-muted-foreground font-medium text-xs">{i + 1}</td>
+                            <td className="py-2.5 pr-2 max-w-[300px]">
+                              <p className="font-medium truncate leading-snug">{v.title}</p>
                               <div className="flex items-center gap-2 mt-1">
-                                <div className="flex-1 max-w-[120px] bg-muted rounded-full h-1.5">
-                                  <div className={cn("h-1.5 rounded-full", barColor)} style={{ width: `${Math.min(v.viewsPercent, 100)}%` }} />
+                                <div className="flex-1 max-w-[100px] bg-muted rounded-full h-1">
+                                  <div className={cn("h-1 rounded-full transition-all", barColor)} style={{ width: `${Math.min(v.viewsPercent, 100)}%` }} />
                                 </div>
-                                <span className="text-xs text-muted-foreground shrink-0">{v.viewsPercent}%</span>
+                                <span className="text-xs text-muted-foreground">{v.viewsPercent}% delle viste</span>
                               </div>
                             </td>
-                            <td className="py-2.5 px-3 text-right tabular-nums font-medium">{formatNumber(v.views)}</td>
-                            <td className="py-2.5 px-3 text-right tabular-nums text-muted-foreground">{v.watchTimeHours.toLocaleString("it")}h</td>
-                            <td className="py-2.5 px-3 text-right">
-                              <span className={cn(
-                                "text-xs font-semibold px-1.5 py-0.5 rounded",
-                                v.avgViewPercentage >= 50 ? "bg-emerald-500/10 text-emerald-400" :
-                                v.avgViewPercentage >= 30 ? "bg-amber-500/10 text-amber-400" :
-                                "bg-red-500/10 text-red-400"
-                              )}>
-                                {v.avgViewPercentage}%
-                              </span>
+                            <td className="py-2.5 px-2 text-right text-xs text-muted-foreground hidden sm:table-cell whitespace-nowrap">{pubDate}</td>
+                            <td className="py-2.5 px-2 text-right tabular-nums font-semibold">{formatNumber(v.views)}</td>
+                            <td className="py-2.5 px-2 text-right tabular-nums whitespace-nowrap">
+                              <span className="font-mono">{fmtDur}</span>
+                              <span className={cn("ml-1.5 text-xs font-semibold", retColor)}>({v.avgViewPercentage}%)</span>
                             </td>
-                            <td className="py-2.5 px-3 text-right tabular-nums text-muted-foreground">{fmtDur}</td>
-                            <td className="py-2.5 pl-3 text-right tabular-nums">
+                            <td className="py-2.5 px-2 text-right tabular-nums text-muted-foreground hidden md:table-cell">{v.watchTimeHours}h</td>
+                            <td className="py-2.5 pl-2 text-right tabular-nums">
                               {v.subscribersGained > 0
-                                ? <span className="text-emerald-400 font-medium">+{v.subscribersGained}</span>
-                                : <span className="text-muted-foreground">—</span>}
+                                ? <span className="text-emerald-400 font-semibold">+{v.subscribersGained}</span>
+                                : <span className="text-muted-foreground/40">—</span>}
                             </td>
                           </tr>
                         );
@@ -505,40 +507,29 @@ export default function YouTubePage() {
                   </table>
                 </div>
 
-                {/* Insights */}
+                {/* Insights panel */}
                 {topVideos.insights.length > 0 && (
                   <div className="rounded-lg border border-red-900/20 bg-red-950/10 p-3 space-y-1.5">
                     <p className="text-xs font-semibold text-red-400 flex items-center gap-1.5">
-                      <Lightbulb className="h-3.5 w-3.5" /> Insights
+                      <Lightbulb className="h-3.5 w-3.5" /> Insights sul periodo
                     </p>
                     {topVideos.insights.map((ins, i) => (
                       <p key={i} className="text-xs text-muted-foreground flex items-start gap-1.5">
-                        <span className="text-red-400/60 mt-0.5 shrink-0">•</span>
+                        <span className="text-red-400/50 mt-0.5 shrink-0">•</span>
                         <span>{ins}</span>
                       </p>
                     ))}
                   </div>
                 )}
+
                 <p className="text-xs text-muted-foreground italic">
-                  Dati YouTube Analytics in tempo reale · Retention = % media del video guardato
+                  Dati YouTube Analytics in tempo reale · Durata media (ret.) = MM:SS guardati (% del video)
                 </p>
               </div>
             )}
           </CardContent>
         </Card>
 
-        {/* Episodes */}
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-base">Episodes</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <EpisodeTable
-              episodes={episodes.slice(0, 20)}
-              loading={episodesLoading}
-            />
-          </CardContent>
-        </Card>
       </div>
 
       {/* Add Channel Dialog */}

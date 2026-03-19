@@ -70,6 +70,7 @@ export interface ExecutiveResponse {
   }>;
   topYouTubeContent: Array<{
     title: string;
+    publishedAt: string | null;
     views: number;
     viewsPercent: number;
     watchTimeHours: number;
