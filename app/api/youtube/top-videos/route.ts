@@ -99,6 +99,21 @@ export async function GET(request: NextRequest) {
         const accessToken = await refreshToken(clientId, clientSecret, rt);
         if (!accessToken) continue;
 
+        // If filtering by playlist, fetch video IDs from the playlist first
+        let playlistVideoIds: string[] | null = null;
+        if (filterPlaylistId) {
+          const plRes = await fetch(
+            `https://www.googleapis.com/youtube/v3/playlistItems?part=contentDetails&playlistId=${filterPlaylistId}&maxResults=50`,
+            { headers: { Authorization: `Bearer ${accessToken}` } }
+          );
+          if (plRes.ok) {
+            const plJson = await plRes.json() as { items?: { contentDetails: { videoId: string } }[] };
+            playlistVideoIds = (plJson.items || []).map((item) => item.contentDetails.videoId);
+          }
+          // If we couldn't fetch the playlist or it's empty, skip this channel
+          if (!playlistVideoIds || playlistVideoIds.length === 0) continue;
+        }
+
         const params = new URLSearchParams({
           ids: `channel==${channelId}`,
           startDate,
@@ -108,7 +123,7 @@ export async function GET(request: NextRequest) {
           sort: "-views",
           maxResults: "50",
         });
-        if (filterPlaylistId) params.set("filters", `playlist==${filterPlaylistId}`);
+        if (playlistVideoIds) params.set("filters", `video==${playlistVideoIds.join(",")}`);
         const analyticsRes = await fetch(
           `https://youtubeanalytics.googleapis.com/v2/reports?${params}`,
           { headers: { Authorization: `Bearer ${accessToken}` } }
