@@ -465,8 +465,129 @@ export default function ExecutivePage() {
           </Card>
         </div>
 
-        {/* ── Section 5: What's Working ── */}
-        <div className="grid gap-4 grid-cols-1 lg:grid-cols-3">
+        {/* ── Section 5a: YouTube Analytics (full-width Studio-style) ── */}
+        <Card className="border-red-900/30">
+          <CardHeader className="pb-3">
+            <div className="flex items-center justify-between">
+              <CardTitle className="text-base flex items-center gap-2">
+                <Youtube className="h-4 w-4 text-red-500" />
+                <span>YouTube Analytics</span>
+              </CardTitle>
+              <span className="text-xs text-muted-foreground bg-muted px-2 py-0.5 rounded-full">
+                {dateRange.startDate} — {dateRange.endDate}
+              </span>
+            </div>
+          </CardHeader>
+          <CardContent>
+            {isLoading ? (
+              <div className="space-y-3">
+                <div className="grid grid-cols-4 gap-3">{Array.from({ length: 4 }).map((_, i) => <Skeleton key={i} className="h-16" />)}</div>
+                <Skeleton className="h-48 w-full" />
+              </div>
+            ) : (data?.topYouTubeContent || []).length === 0 ? (
+              <p className="text-sm text-muted-foreground py-6 text-center">Nessun dato video disponibile per il periodo selezionato.</p>
+            ) : (
+              <div className="space-y-5">
+                {/* Channel KPI strip */}
+                {data?.youtubeChannelSummary && (
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                    {[
+                      { label: "Viste Totali", value: formatNumber(data.youtubeChannelSummary.totalViews), sub: "nel periodo" },
+                      { label: "Watch Time", value: `${data.youtubeChannelSummary.totalWatchTimeHours.toLocaleString("it")}h`, sub: "ore guardate" },
+                      { label: "Nuovi Iscritti", value: `+${data.youtubeChannelSummary.totalSubscribersGained}`, sub: "guadagnati" },
+                      { label: "Like Totali", value: formatNumber(data.youtubeChannelSummary.totalLikes), sub: "nel periodo" },
+                    ].map((kpi) => (
+                      <div key={kpi.label} className="rounded-lg border border-red-900/20 bg-red-950/10 p-3 text-center">
+                        <p className="text-xl font-bold tabular-nums">{kpi.value}</p>
+                        <p className="text-xs font-medium text-red-400 mt-0.5">{kpi.label}</p>
+                        <p className="text-xs text-muted-foreground">{kpi.sub}</p>
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                {/* Video table */}
+                <div className="overflow-x-auto">
+                  <table className="w-full text-sm">
+                    <thead>
+                      <tr className="border-b text-xs text-muted-foreground">
+                        <th className="text-left pb-2 pr-3 w-6">#</th>
+                        <th className="text-left pb-2 min-w-[200px]">Contenuto</th>
+                        <th className="text-right pb-2 px-3">Viste</th>
+                        <th className="text-right pb-2 px-3">Watch (h)</th>
+                        <th className="text-right pb-2 px-3">Retention</th>
+                        <th className="text-right pb-2 px-3">Durata media</th>
+                        <th className="text-right pb-2 pl-3">Iscritti +</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-border/50">
+                      {(data?.topYouTubeContent || []).map((v, i) => {
+                        const barColor = i === 0 ? "bg-red-500" : i === 1 ? "bg-red-400" : "bg-red-300/70";
+                        return (
+                          <tr key={v.title} className="hover:bg-accent/30 transition-colors group">
+                            <td className="py-2.5 pr-3 text-muted-foreground font-medium w-6">{i + 1}</td>
+                            <td className="py-2.5 pr-3 max-w-[280px]">
+                              <p className="font-medium truncate text-sm">{v.title}</p>
+                              {/* View share bar */}
+                              <div className="flex items-center gap-2 mt-1">
+                                <div className="flex-1 max-w-[120px] bg-muted rounded-full h-1.5">
+                                  <div className={cn("h-1.5 rounded-full", barColor)} style={{ width: `${Math.min(v.viewsPercent, 100)}%` }} />
+                                </div>
+                                <span className="text-xs text-muted-foreground shrink-0">{v.viewsPercent}%</span>
+                              </div>
+                            </td>
+                            <td className="py-2.5 px-3 text-right tabular-nums font-medium">{formatNumber(v.views)}</td>
+                            <td className="py-2.5 px-3 text-right tabular-nums text-muted-foreground">{v.watchTimeHours.toLocaleString("it")}h</td>
+                            <td className="py-2.5 px-3 text-right">
+                              <span className={cn(
+                                "text-xs font-semibold px-1.5 py-0.5 rounded",
+                                v.avgViewPercentage >= 50 ? "bg-emerald-500/10 text-emerald-400" :
+                                v.avgViewPercentage >= 30 ? "bg-amber-500/10 text-amber-400" :
+                                "bg-red-500/10 text-red-400"
+                              )}>
+                                {v.avgViewPercentage}%
+                              </span>
+                            </td>
+                            <td className="py-2.5 px-3 text-right tabular-nums text-muted-foreground">
+                              {fmtDuration(v.avgViewDurationSeconds)}
+                            </td>
+                            <td className="py-2.5 pl-3 text-right tabular-nums">
+                              {v.subscribersGained > 0
+                                ? <span className="text-emerald-400 font-medium">+{v.subscribersGained}</span>
+                                : <span className="text-muted-foreground">—</span>}
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+
+                {/* YouTube insights */}
+                {(data?.youtubeInsights || []).length > 0 && (
+                  <div className="rounded-lg border border-red-900/20 bg-red-950/10 p-3 space-y-1.5">
+                    <p className="text-xs font-semibold text-red-400 flex items-center gap-1.5">
+                      <Lightbulb className="h-3.5 w-3.5" /> Insights YouTube
+                    </p>
+                    {(data?.youtubeInsights || []).map((ins, i) => (
+                      <p key={i} className="text-xs text-muted-foreground flex items-start gap-1.5">
+                        <span className="text-red-400/60 mt-0.5 shrink-0">•</span>
+                        <span>{ins}</span>
+                      </p>
+                    ))}
+                  </div>
+                )}
+
+                <p className="text-xs text-muted-foreground italic">
+                  Dati YouTube Analytics in tempo reale · Retention = % media del video guardato
+                </p>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+
+        {/* ── Section 5b: Top Pages + Audio (2-col) ── */}
+        <div className="grid gap-4 grid-cols-1 lg:grid-cols-2">
           {/* Top Pages */}
           <Card>
             <CardHeader>
@@ -480,54 +601,19 @@ export default function ExecutivePage() {
               ) : (data?.topPages || []).length === 0 ? (
                 <p className="text-sm text-muted-foreground py-4">Nessun dato disponibile</p>
               ) : (
-                <div className="space-y-2">
+                <div className="space-y-1">
                   {(data?.topPages || []).map((p, i) => (
                     <div key={p.page} className="flex items-start gap-2 p-2 rounded hover:bg-accent/50 text-sm">
                       <span className="text-muted-foreground w-5 shrink-0 font-medium">{i + 1}</span>
                       <div className="flex-1 min-w-0">
                         <p className="font-medium truncate">{p.page}</p>
                         <p className="text-xs text-muted-foreground">
-                          {formatNumber(p.views)} views · {formatNumber(p.users)} users · {p.avgDuration.toFixed(0)}s
+                          {formatNumber(p.views)} views · {formatNumber(p.users)} users · {p.avgDuration.toFixed(0)}s avg
                         </p>
                       </div>
                     </div>
                   ))}
                 </div>
-              )}
-            </CardContent>
-          </Card>
-
-          {/* Top YouTube Content */}
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-base flex items-center gap-2">
-                <Youtube className="h-4 w-4 text-red-500" /> Top Contenuti YouTube
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              {isLoading ? (
-                <div className="space-y-2">{Array.from({ length: 5 }).map((_, i) => <Skeleton key={i} className="h-10" />)}</div>
-              ) : (data?.topYouTubeContent || []).length === 0 ? (
-                <p className="text-sm text-muted-foreground py-4">Nessun dato video disponibile</p>
-              ) : (
-                <>
-                  <div className="space-y-2">
-                    {(data?.topYouTubeContent || []).map((v, i) => (
-                      <div key={v.title} className="flex items-start gap-2 p-2 rounded hover:bg-accent/50 text-sm">
-                        <span className="text-muted-foreground w-5 shrink-0 font-medium">{i + 1}</span>
-                        <div className="flex-1 min-w-0">
-                          <p className="font-medium truncate">{v.title}</p>
-                          <p className="text-xs text-muted-foreground">
-                            {formatNumber(v.views)} views · {formatNumber(v.likes)} likes · {formatNumber(v.watchTimeMinutes)} min
-                          </p>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                  <p className="text-xs text-muted-foreground mt-3 italic">
-                    Dati YouTube Analytics — aggiornati all&apos;ultimo sync
-                  </p>
-                </>
               )}
             </CardContent>
           </Card>
@@ -543,27 +629,24 @@ export default function ExecutivePage() {
               {isLoading ? (
                 <div className="space-y-2">{Array.from({ length: 5 }).map((_, i) => <Skeleton key={i} className="h-10" />)}</div>
               ) : (data?.topAudioContent || []).length === 0 ? (
-                <p className="text-sm text-muted-foreground py-4">
-                  Nessun dato di ascolto disponibile. I dati Megaphone non includono metriche di consumo.
-                </p>
+                <div className="py-4 text-center space-y-2">
+                  <p className="text-sm text-muted-foreground">SoundCloud non connesso.</p>
+                  <p className="text-xs text-muted-foreground">Il token è scaduto — vai su Impostazioni → SoundCloud per riconnettersi.</p>
+                </div>
               ) : (
                 <>
-                  <div className="space-y-2">
+                  <div className="space-y-1">
                     {(data?.topAudioContent || []).map((a, i) => (
                       <div key={a.title} className="flex items-start gap-2 p-2 rounded hover:bg-accent/50 text-sm">
                         <span className="text-muted-foreground w-5 shrink-0 font-medium">{i + 1}</span>
                         <div className="flex-1 min-w-0">
                           <p className="font-medium truncate">{a.title}</p>
-                          <p className="text-xs text-muted-foreground">
-                            {formatNumber(a.plays)} plays (lifetime)
-                          </p>
+                          <p className="text-xs text-muted-foreground">{formatNumber(a.plays)} plays (lifetime)</p>
                         </div>
                       </div>
                     ))}
                   </div>
-                  <p className="text-xs text-muted-foreground mt-3 italic">
-                    I plays mostrati sono il totale lifetime da SoundCloud, non il trend del periodo
-                  </p>
+                  <p className="text-xs text-muted-foreground mt-3 italic">Plays lifetime da SoundCloud</p>
                 </>
               )}
             </CardContent>

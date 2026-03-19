@@ -71,9 +71,20 @@ export interface ExecutiveResponse {
   topYouTubeContent: Array<{
     title: string;
     views: number;
+    viewsPercent: number;
+    watchTimeHours: number;
     likes: number;
-    watchTimeMinutes: number;
+    subscribersGained: number;
+    avgViewDurationSeconds: number;
+    avgViewPercentage: number;
   }>;
+  youtubeChannelSummary: {
+    totalViews: number;
+    totalWatchTimeHours: number;
+    totalSubscribersGained: number;
+    totalLikes: number;
+  } | null;
+  youtubeInsights: string[];
   topAudioContent: Array<{
     title: string;
     plays: number;

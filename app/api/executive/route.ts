@@ -47,15 +47,47 @@ function withPercentage<T extends { sessions: number }>(
   return items.map((i) => ({ ...i, percentage: Math.round((i.sessions / total) * 1000) / 10 }));
 }
 
+// ── YouTube data types ──────────────────────────────────
+
+export interface YouTubeVideoStat {
+  title: string;
+  views: number;
+  viewsPercent: number;
+  watchTimeHours: number;
+  likes: number;
+  subscribersGained: number;
+  avgViewDurationSeconds: number;
+  avgViewPercentage: number; // % of video watched
+}
+
+export interface YouTubeChannelSummary {
+  totalViews: number;
+  totalWatchTimeHours: number;
+  totalSubscribersGained: number;
+  totalLikes: number;
+}
+
+export interface YouTubeResult {
+  videos: YouTubeVideoStat[];
+  channelSummary: YouTubeChannelSummary;
+  insights: string[];
+}
+
 // ── YouTube top videos (direct Analytics API, not DB) ─────
 
 async function fetchTopYouTubeVideos(
   startDate: string,
   endDate: string,
-): Promise<{ title: string; views: number; likes: number; watchTimeMinutes: number }[]> {
+): Promise<YouTubeResult> {
+  const empty: YouTubeResult = {
+    videos: [],
+    channelSummary: { totalViews: 0, totalWatchTimeHours: 0, totalSubscribersGained: 0, totalLikes: 0 },
+    insights: [],
+  };
+
   const clientId = process.env.YOUTUBE_CLIENT_ID || "";
   const clientSecret = process.env.YOUTUBE_CLIENT_SECRET || "";
-  if (!clientId || !clientSecret) return [];
+  if (!clientId || !clientSecret) return empty;
 
   try {
     const supabase = createClient();
@@ -71,9 +103,20 @@ async function fetchTopYouTubeVideos(
     } | null;
 
     const channelIds = config?.channelIds || [];
-    if (channelIds.length === 0) return [];
+    if (channelIds.length === 0) return empty;
 
-    const allVideos = new Map<string, { title: string; views: number; likes: number; watchTimeMinutes: number }>();
+    type VideoAccum = {
+      title: string;
+      views: number;
+      watchTimeMinutes: number;
+      likes: number;
+      subscribersGained: number;
+      avgViewDurationSeconds: number;
+      avgViewPercentage: number;
+      count: number; // for averaging per-video averages
+    };
+
+    const allVideos = new Map<string, VideoAccum>();
 
     for (const channelId of channelIds) {
       try {
@@ -95,26 +138,28 @@ async function fetchTopYouTubeVideos(
         if (!tokenRes.ok) continue;
         const { access_token: accessToken } = await tokenRes.json() as { access_token: string };
 
-        // Top videos for this channel/period
+        // Top videos: views, likes, watch time, subscribers, avg duration, avg % watched
         const analyticsParams = new URLSearchParams({
           ids: `channel==${channelId}`,
           startDate,
           endDate,
-          metrics: "views,likes,estimatedMinutesWatched",
+          metrics: "views,likes,estimatedMinutesWatched,subscribersGained,averageViewDuration,averageViewPercentage",
           dimensions: "video",
           sort: "-views",
-          maxResults: "5",
+          maxResults: "10",
         });
         const analyticsRes = await fetch(
           `https://youtubeanalytics.googleapis.com/v2/reports?${analyticsParams}`,
           { headers: { Authorization: `Bearer ${accessToken}` } }
         );
         if (!analyticsRes.ok) continue;
-        const analyticsJson = await analyticsRes.json() as { rows?: [string, number, number, number][] };
+        const analyticsJson = await analyticsRes.json() as {
+          rows?: [string, number, number, number, number, number, number][];
+        };
         const rows = analyticsJson.rows || [];
         if (rows.length === 0) continue;
 
-        // Get video titles from Data API
+        // Fetch video titles from YouTube Data API
         const videoIds = rows.map((r) => r[0]).join(",");
         const dataRes = await fetch(
           `https://www.googleapis.com/youtube/v3/videos?part=snippet&id=${videoIds}`,
@@ -128,18 +173,26 @@ async function fetchTopYouTubeVideos(
           }
         }
 
-        for (const [videoId, views, likes, watchTime] of rows) {
+        for (const [videoId, views, likes, watchMinutes, subs, avgDur, avgPct] of rows) {
           const existing = allVideos.get(videoId);
           if (existing) {
             existing.views += views;
+            existing.watchTimeMinutes += watchMinutes;
             existing.likes += likes;
-            existing.watchTimeMinutes += watchTime;
+            existing.subscribersGained += subs;
+            existing.avgViewDurationSeconds = (existing.avgViewDurationSeconds * existing.count + avgDur) / (existing.count + 1);
+            existing.avgViewPercentage = (existing.avgViewPercentage * existing.count + avgPct) / (existing.count + 1);
+            existing.count += 1;
           } else {
             allVideos.set(videoId, {
               title: titleMap.get(videoId) || videoId,
               views,
+              watchTimeMinutes: watchMinutes,
               likes,
-              watchTimeMinutes: Math.round(watchTime),
+              subscribersGained: subs,
+              avgViewDurationSeconds: avgDur,
+              avgViewPercentage: avgPct,
+              count: 1,
             });
           }
         }
@@ -148,12 +201,69 @@ async function fetchTopYouTubeVideos(
       }
     }
 
-    return Array.from(allVideos.values())
+    if (allVideos.size === 0) return empty;
+
+    const sorted = Array.from(allVideos.values())
       .sort((a, b) => b.views - a.views)
-      .slice(0, 5)
       .filter((v) => v.views > 0);
+
+    const totalViews = sorted.reduce((s, v) => s + v.views, 0) || 1;
+    const totalWatchMinutes = sorted.reduce((s, v) => s + v.watchTimeMinutes, 0);
+    const totalSubs = sorted.reduce((s, v) => s + v.subscribersGained, 0);
+    const totalLikes = sorted.reduce((s, v) => s + v.likes, 0);
+
+    const videos: YouTubeVideoStat[] = sorted.slice(0, 10).map((v) => ({
+      title: v.title,
+      views: v.views,
+      viewsPercent: Math.round((v.views / totalViews) * 1000) / 10,
+      watchTimeHours: Math.round((v.watchTimeMinutes / 60) * 10) / 10,
+      likes: v.likes,
+      subscribersGained: v.subscribersGained,
+      avgViewDurationSeconds: Math.round(v.avgViewDurationSeconds),
+      avgViewPercentage: Math.round(v.avgViewPercentage * 10) / 10,
+    }));
+
+    // Generate YouTube-specific insights
+    const ytInsights: string[] = [];
+    if (videos.length > 0) {
+      const top = videos[0];
+      ytInsights.push(
+        `"${top.title.length > 50 ? top.title.slice(0, 50) + "…" : top.title}" è il video più visto con ${top.viewsPercent}% delle viste totali.`
+      );
+      if (totalSubs > 0) {
+        const bestSubVideo = [...videos].sort((a, b) => b.subscribersGained - a.subscribersGained)[0];
+        if (bestSubVideo.subscribersGained > 0) {
+          ytInsights.push(
+            `"${bestSubVideo.title.length > 40 ? bestSubVideo.title.slice(0, 40) + "…" : bestSubVideo.title}" ha portato ${bestSubVideo.subscribersGained} nuovi iscritti nel periodo.`
+          );
+        }
+      }
+      const bestRetention = [...videos].sort((a, b) => b.avgViewPercentage - a.avgViewPercentage)[0];
+      if (bestRetention.avgViewPercentage > 0) {
+        ytInsights.push(
+          `Il video con la retention migliore è "${bestRetention.title.length > 35 ? bestRetention.title.slice(0, 35) + "…" : bestRetention.title}" con una visione media del ${bestRetention.avgViewPercentage}% del contenuto.`
+        );
+      }
+      const avgPct = videos.reduce((s, v) => s + v.avgViewPercentage, 0) / videos.length;
+      if (avgPct > 50) {
+        ytInsights.push(`Retention media eccellente: ${avgPct.toFixed(1)}% del contenuto guardato in media. Il pubblico è molto coinvolto.`);
+      } else if (avgPct > 30) {
+        ytInsights.push(`Retention media del ${avgPct.toFixed(1)}%. Considera intro più brevi per aumentare il completamento.`);
+      }
+    }
+
+    return {
+      videos,
+      channelSummary: {
+        totalViews,
+        totalWatchTimeHours: Math.round((totalWatchMinutes / 60) * 10) / 10,
+        totalSubscribersGained: totalSubs,
+        totalLikes,
+      },
+      insights: ytInsights,
+    };
   } catch {
-    return [];
+    return empty;
   }
 }
 
@@ -268,7 +378,7 @@ export async function GET(request: NextRequest) {
       episodesResult,
       prevEpisodesResult,
       syncStatusResult,
-      topYouTubeContent,
+      youtubeData,
     ] = await Promise.all([
       ga4.fetchDailyAggregates(startDate, endDate),
       ga4.fetchTrafficSources(startDate, endDate) as Promise<GA4TrafficSource[]>,
@@ -510,7 +620,9 @@ export async function GET(request: NextRequest) {
       topCountries,
       deviceBreakdown,
       topPages,
-      topYouTubeContent,
+      topYouTubeContent: youtubeData.videos,
+      youtubeChannelSummary: youtubeData.channelSummary,
+      youtubeInsights: youtubeData.insights,
       topAudioContent,
       editorialImpact: {
         totalPublished: episodes.length,
