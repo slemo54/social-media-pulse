@@ -410,7 +410,7 @@ export class GA4Connector implements PlatformConnector {
           { name: "activeUsers" },
           { name: "bounceRate" },
         ],
-        orderBys: [{ metric: { metricName: "sessions" }, descending: true }],
+        orderBys: [{ metric: { metricName: "sessions" }, desc: true }],
       };
 
       const response = await fetch(
