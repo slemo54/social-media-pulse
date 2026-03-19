@@ -42,6 +42,7 @@ interface YouTubeChannel {
 }
 
 const ALL_CHANNELS = "all";
+const PODCAST_PLAYLIST_ID = "PLIgyYe8MhzC2-KSYFi_wynUDjb8CSiJ8E";
 
 export default function YouTubePage() {
   const { user, signOut } = useAuth();
@@ -166,6 +167,7 @@ export default function YouTubePage() {
     setTopVideosLoading(true);
     const params = new URLSearchParams({ startDate: dateRange.startDate, endDate: dateRange.endDate });
     if (selectedChannelId !== ALL_CHANNELS) params.set("channelId", selectedChannelId);
+    params.set("playlistId", PODCAST_PLAYLIST_ID);
     fetch(`/api/youtube/top-videos?${params}`)
       .then((r) => r.json())
       .then((d: YouTubeTopVideosResponse) => setTopVideos(d))
@@ -411,7 +413,7 @@ export default function YouTubePage() {
                 <Youtube className="h-4 w-4 text-red-500" />
                 Podcast Analytics
                 <span className="text-xs font-normal text-muted-foreground">
-                  — top contenuti nel periodo
+                  — episodi RSS (playlist podcast)
                 </span>
               </CardTitle>
               <span className="text-xs text-muted-foreground bg-muted px-2 py-0.5 rounded-full">

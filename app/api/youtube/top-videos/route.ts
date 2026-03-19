@@ -45,6 +45,7 @@ export async function GET(request: NextRequest) {
   const startDate = sp.get("startDate");
   const endDate = sp.get("endDate");
   const filterChannelId = sp.get("channelId") || null; // optional
+  const filterPlaylistId = sp.get("playlistId") || null; // optional — filter to a specific playlist
 
   if (!startDate || !endDate) {
     return NextResponse.json({ message: "startDate and endDate required" }, { status: 400 });
@@ -105,8 +106,9 @@ export async function GET(request: NextRequest) {
           metrics: "views,likes,estimatedMinutesWatched,subscribersGained,averageViewDuration,averageViewPercentage",
           dimensions: "video",
           sort: "-views",
-          maxResults: "10",
+          maxResults: "50",
         });
+        if (filterPlaylistId) params.set("filters", `playlist==${filterPlaylistId}`);
         const analyticsRes = await fetch(
           `https://youtubeanalytics.googleapis.com/v2/reports?${params}`,
           { headers: { Authorization: `Bearer ${accessToken}` } }
@@ -165,7 +167,7 @@ export async function GET(request: NextRequest) {
     const totalSubs = sorted.reduce((s, v) => s + v.subscribersGained, 0);
     const totalLikes = sorted.reduce((s, v) => s + v.likes, 0);
 
-    const videos: YouTubeVideoStat[] = sorted.slice(0, 10).map((v) => ({
+    const videos: YouTubeVideoStat[] = sorted.slice(0, 50).map((v) => ({
       title: v.title,
       publishedAt: v.publishedAt,
       views: v.views,
