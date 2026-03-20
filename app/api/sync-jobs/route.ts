@@ -95,12 +95,12 @@ export async function POST(request: Request) {
     .insert({
       platform: body.platform,
       status: "pending",
-      log: JSON.stringify([
+      log: [
         {
           ts: new Date().toISOString(),
           message: "Job created — waiting for runner",
         },
-      ]),
+      ],
     } as never)
     .select()
     .single();

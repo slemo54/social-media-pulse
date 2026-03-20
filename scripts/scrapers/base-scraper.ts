@@ -61,12 +61,18 @@ export async function appendJobLog(jobId: string, message: string) {
     .eq("id", jobId)
     .single();
 
-  const currentLog = (job as unknown as { log: Array<{ ts: string; message: string }> } | null)?.log || [];
+  const rawLog = (job as unknown as { log: unknown } | null)?.log;
+  let currentLog: Array<{ ts: string; message: string }> = [];
+  if (Array.isArray(rawLog)) {
+    currentLog = rawLog;
+  } else if (typeof rawLog === "string") {
+    try { currentLog = JSON.parse(rawLog); } catch { currentLog = []; }
+  }
   currentLog.push({ ts, message });
 
   await supabase()
     .from("sync_jobs")
-    .update({ log: JSON.stringify(currentLog) } as never)
+    .update({ log: currentLog } as never)
     .eq("id", jobId);
 }
 

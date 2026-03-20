@@ -20,7 +20,7 @@ export async function importScrapedData(
   await supabase
     .from("sync_jobs")
     .update({
-      raw_data: JSON.stringify({
+      raw_data: {
         source: "playwright_scrape",
         scraped_at: result.scrapedAt,
         page_url: result.pageUrl,
@@ -29,7 +29,7 @@ export async function importScrapedData(
         episodes_count: result.episodes.length,
         daily: result.daily,
         episodes: result.episodes,
-      }),
+      },
     } as never)
     .eq("id", jobId);
 
@@ -45,7 +45,7 @@ export async function importScrapedData(
         total_downloads: d.downloads ?? null,
         total_views: d.plays ?? d.downloads ?? null,
         unique_listeners: d.listeners ?? null,
-        raw_data: JSON.stringify({
+        raw_data: {
           source: "playwright_scrape",
           data_quality: "scraped",
           page_url: result.pageUrl,
@@ -53,7 +53,7 @@ export async function importScrapedData(
           engaged_listeners: d.engaged_listeners ?? null,
           followers: d.followers ?? null,
           ...d.raw,
-        }),
+        },
       }));
 
       const { error } = await supabase
