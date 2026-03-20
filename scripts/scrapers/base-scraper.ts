@@ -1,4 +1,4 @@
-import { chromium, type Browser, type BrowserContext, type Page } from "playwright";
+import { chromium, type BrowserContext, type Page } from "playwright";
 import { createClient } from "@supabase/supabase-js";
 import * as path from "path";
 import * as os from "os";
@@ -102,46 +102,59 @@ export async function takeScreenshot(page: Page, label: string): Promise<string>
 }
 
 // ---------------------------------------------------------------------------
-// Launch browser with persistent context
+// Chrome profile path (macOS)
 // ---------------------------------------------------------------------------
-export async function launchBrowser(platform: string): Promise<{
-  browser: Browser;
+const CHROME_USER_DATA_DIR = path.join(
+  os.homedir(),
+  "Library",
+  "Application Support",
+  "Google",
+  "Chrome"
+);
+
+// Which Chrome profile to use. "Default" = first profile (u/0).
+// Override with env var CHROME_PROFILE if needed (e.g. "Profile 1" for u/1).
+const CHROME_PROFILE = process.env.CHROME_PROFILE || "Default";
+
+// ---------------------------------------------------------------------------
+// Launch browser using the user's real Chrome profile
+// ---------------------------------------------------------------------------
+export async function launchBrowser(_platform: string): Promise<{
+  browser: null; // persistent context has no separate browser handle
   context: BrowserContext;
   page: Page;
 }> {
-  const sessionDir = getSessionDir(platform);
-
-  const browser = await chromium.launch({
-    headless: false,
-    args: ["--disable-blink-features=AutomationControlled"],
-  });
-
-  const context = await browser.newContext({
-    storageState: getStorageStatePath(platform),
-    viewport: { width: 1440, height: 900 },
-    userAgent:
-      "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36",
-  });
-
-  const page = await context.newPage();
-  return { browser, context, page };
-}
-
-function getStorageStatePath(platform: string): string | undefined {
-  const filePath = path.join(getSessionDir(platform), "storage-state.json");
-  if (fs.existsSync(filePath)) {
-    return filePath;
+  // Check that Chrome user data dir exists
+  if (!fs.existsSync(CHROME_USER_DATA_DIR)) {
+    throw new Error(
+      `Chrome user data directory not found at: ${CHROME_USER_DATA_DIR}\n` +
+      "Make sure Google Chrome is installed."
+    );
   }
-  return undefined;
+
+  console.log(`Launching Chrome with profile "${CHROME_PROFILE}"...`);
+  console.log("IMPORTANT: Close Google Chrome before running this script!\n");
+
+  const context = await chromium.launchPersistentContext(CHROME_USER_DATA_DIR, {
+    channel: "chrome",
+    headless: false,
+    args: [
+      `--profile-directory=${CHROME_PROFILE}`,
+      "--disable-blink-features=AutomationControlled",
+    ],
+    viewport: { width: 1440, height: 900 },
+  });
+
+  const page = context.pages()[0] || (await context.newPage());
+  return { browser: null, context, page };
 }
 
 // ---------------------------------------------------------------------------
-// Save session after successful auth
+// Save session — no-op when using Chrome profile (session is Chrome's own)
 // ---------------------------------------------------------------------------
-export async function saveSession(context: BrowserContext, platform: string) {
-  const filePath = path.join(getSessionDir(platform), "storage-state.json");
-  await context.storageState({ path: filePath });
-  console.log(`Session saved for ${platform}`);
+export async function saveSession(_context: BrowserContext, _platform: string) {
+  // Using the real Chrome profile — cookies/sessions are persisted by Chrome itself
+  console.log("Session managed by Chrome profile — no separate save needed");
 }
 
 // ---------------------------------------------------------------------------

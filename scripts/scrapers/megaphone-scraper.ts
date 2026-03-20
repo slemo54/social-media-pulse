@@ -97,7 +97,7 @@ export async function scrapeMegaphone(jobId: string): Promise<ScrapeResult> {
       scrapedAt: new Date().toISOString(),
     };
   } finally {
-    await browser.close();
+    await context.close();
   }
 }
 
