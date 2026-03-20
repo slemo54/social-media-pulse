@@ -41,14 +41,18 @@ export async function scrapeMegaphone(jobId: string): Promise<ScrapeResult> {
 
   try {
     await appendJobLog(jobId, "Browser opened — navigating to Megaphone CMS");
-    await page.goto(ORG_DASHBOARD_URL, { waitUntil: "networkidle", timeout: 30000 });
+    await page.goto(ORG_DASHBOARD_URL, { waitUntil: "domcontentloaded", timeout: 30000 });
+    await appendJobLog(jobId, `Page loaded — URL: ${page.url()}`);
+    await page.waitForTimeout(3000);
 
     // Check if we need to login
     const loggedIn = await isLoggedIn(page);
+    await appendJobLog(jobId, `Login check: ${loggedIn ? "already logged in" : "need login"}`);
+
     if (!loggedIn) {
       await appendJobLog(jobId, "Not logged in — redirecting to login page");
       if (!page.url().includes("/signin")) {
-        await page.goto(LOGIN_URL, { waitUntil: "networkidle" });
+        await page.goto(LOGIN_URL, { waitUntil: "domcontentloaded", timeout: 30000 });
       }
 
       const loginSuccess = await waitForLogin(page, jobId, {
@@ -62,11 +66,12 @@ export async function scrapeMegaphone(jobId: string): Promise<ScrapeResult> {
     }
 
     await saveSession(context, "megaphone");
-    await appendJobLog(jobId, "Logged in — navigating to analytics");
+    await appendJobLog(jobId, "Navigating to dashboard for data collection");
 
     // Navigate to the dashboard
-    await page.goto(ORG_DASHBOARD_URL, { waitUntil: "networkidle", timeout: 30000 });
-    await page.waitForTimeout(3000); // Let charts/data load
+    await page.goto(ORG_DASHBOARD_URL, { waitUntil: "domcontentloaded", timeout: 30000 });
+    await page.waitForTimeout(5000); // Let charts/data load
+    await appendJobLog(jobId, `Dashboard URL: ${page.url()}`);
 
     await takeScreenshot(page, "megaphone-dashboard");
 
@@ -142,7 +147,7 @@ async function interceptMegaphoneAPI(
   });
 
   // Trigger a page reload to capture fresh API calls
-  await page.reload({ waitUntil: "networkidle" });
+  await page.reload({ waitUntil: "domcontentloaded" });
   await page.waitForTimeout(5000);
 
   // Also try navigating to analytics/episodes sections if they exist
@@ -154,7 +159,7 @@ async function interceptMegaphoneAPI(
         await appendJobLog(jobId, `Navigating to: ${href}`);
         await page.goto(
           href.startsWith("http") ? href : `https://cms.megaphone.fm${href}`,
-          { waitUntil: "networkidle", timeout: 15000 }
+          { waitUntil: "domcontentloaded", timeout: 15000 }
         );
         await page.waitForTimeout(3000);
         await takeScreenshot(page, `megaphone-${href.split("/").pop()}`);
@@ -245,7 +250,7 @@ async function scrapeMegaphoneDOM(
   await appendJobLog(jobId, "Attempting DOM scraping...");
 
   // Navigate back to dashboard
-  await page.goto(ORG_DASHBOARD_URL, { waitUntil: "networkidle", timeout: 30000 });
+  await page.goto(ORG_DASHBOARD_URL, { waitUntil: "domcontentloaded", timeout: 30000 });
   await page.waitForTimeout(3000);
 
   // Look for data tables

@@ -48,7 +48,7 @@ export async function scrapeApplePodcasts(jobId: string): Promise<ScrapeResult> 
 
   try {
     await appendJobLog(jobId, "Browser opened — navigating to Apple Podcasts Connect");
-    await page.goto(SHOW_URL, { waitUntil: "networkidle", timeout: 30000 });
+    await page.goto(SHOW_URL, { waitUntil: "domcontentloaded", timeout: 30000 });
 
     // Check if we need to login
     const loggedIn = await isLoggedIn(page);
@@ -111,7 +111,7 @@ export async function scrapeApplePodcasts(jobId: string): Promise<ScrapeResult> 
 async function navigateToAnalytics(page: Page, jobId: string) {
   // Try direct URL first
   try {
-    await page.goto(ANALYTICS_URL, { waitUntil: "networkidle", timeout: 20000 });
+    await page.goto(ANALYTICS_URL, { waitUntil: "domcontentloaded", timeout: 20000 });
     await page.waitForTimeout(2000);
     if (page.url().includes("analytics")) {
       await appendJobLog(jobId, "Navigated to analytics section");
@@ -191,7 +191,7 @@ async function interceptAppleAPI(
   });
 
   // Reload to capture API calls
-  await page.reload({ waitUntil: "networkidle" });
+  await page.reload({ waitUntil: "domcontentloaded" });
   await page.waitForTimeout(5000);
 
   // Try to expand date range if there's a date picker
