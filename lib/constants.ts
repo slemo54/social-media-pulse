@@ -3,6 +3,7 @@ export const PLATFORM_COLORS: Record<string, string> = {
   youtube: "#ef4444",
   ga4: "#f59e0b",
   soundcloud: "#f97316",
+  apple_podcasts: "#9333ea",
 };
 
 export const PLATFORM_NAMES: Record<string, string> = {
@@ -10,6 +11,7 @@ export const PLATFORM_NAMES: Record<string, string> = {
   youtube: "YouTube",
   ga4: "Google Analytics",
   soundcloud: "SoundCloud",
+  apple_podcasts: "Apple Podcasts",
 };
 
 export const PLATFORMS = ["megaphone", "youtube", "ga4", "soundcloud"] as const;

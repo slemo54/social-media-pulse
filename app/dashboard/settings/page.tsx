@@ -12,6 +12,7 @@ import {
 } from "lucide-react";
 import { Header } from "@/components/dashboard/header";
 import { SyncStatusBadge } from "@/components/dashboard/sync-status-badge";
+import { AudioSyncPanel } from "@/components/dashboard/audio-sync-panel";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -253,6 +254,9 @@ export default function SettingsPage() {
             )}
           </CardContent>
         </Card>
+
+        {/* Audio Analytics Sync (Playwright) */}
+        <AudioSyncPanel />
 
         {/* RSS Feed */}
         <Card>
