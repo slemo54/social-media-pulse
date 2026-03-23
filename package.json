@@ -6,7 +6,9 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "next lint"
+    "lint": "next lint",
+    "sync:megaphone": "tsx scripts/sync-megaphone.ts",
+    "sync:megaphone:full": "tsx scripts/sync-megaphone.ts --full-sync"
   },
   "dependencies": {
     "@radix-ui/react-dialog": "^1.1.4",
@@ -41,8 +43,11 @@
     "@types/react": "^18.3.12",
     "@types/react-dom": "^18.3.1",
     "autoprefixer": "^10.4.20",
+    "dotenv": "^17.3.1",
+    "playwright": "^1.58.2",
     "postcss": "^8.4.49",
     "tailwindcss": "^3.4.17",
+    "tsx": "^4.21.0",
     "typescript": "^5.7.2"
   }
 }
